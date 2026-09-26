@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>4.1.1</version>
+		<relativePath/> <!-- lookup parent from repository -->
+	</parent>
+	<groupId>com.exe101</groupId>
+	<artifactId>exe101-backend</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>exe101-backend</name>
+	<description>Artwork marketplace backend</description>
+	<properties>
+		<java.version>21</java.version>
+	</properties>
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-webmvc</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>com.microsoft.sqlserver</groupId>
+			<artifactId>mssql-jdbc</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-webmvc-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>
+		</plugins>
+	</build>
+	<profiles>
+		<profile>
+			<id>generate-entities</id>
+			<build><plugins><plugin>
+				<groupId>org.hibernate.tool</groupId>
+				<artifactId>hibernate-tools-maven</artifactId>
+				<version>7.3.13.Final</version>
+				<configuration>
+					<propertyFile>${project.basedir}/.local/hibernate.properties</propertyFile>
+					<revengFile>${project.basedir}/tooling/hibernate.reveng.xml</revengFile>
+					<packageName>com.exe101.entity</packageName>
+					<outputDirectory>${project.build.directory}/generated-entities</outputDirectory>
+					<detectManyToMany>false</detectManyToMany>
+					<createCollectionForForeignKey>false</createCollectionForForeignKey>
+					<createManyToOneForForeignKey>false</createManyToOneForForeignKey>
+					<detectOneToOne>false</detectOneToOne>
+				</configuration>
+				<dependencies><dependency>
+					<groupId>com.microsoft.sqlserver</groupId><artifactId>mssql-jdbc</artifactId><version>${mssql-jdbc.version}</version>
+				</dependency></dependencies>
+			</plugin></plugins></build>
+		</profile>
+	</profiles>
+
+</project>
+

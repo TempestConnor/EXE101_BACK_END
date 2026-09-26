@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-reverse-engineering SYSTEM "http://hibernate.org/dtd/hibernate-reverse-engineering-3.0.dtd">
+<hibernate-reverse-engineering>
+    <schema-selection match-catalog="CuratedArtworkMarketplace" match-schema="dbo"/>
+    <type-mapping>
+        <sql-type jdbc-type="NVARCHAR" hibernate-type="string"/>
+        <sql-type jdbc-type="NCHAR" hibernate-type="string"/>
+        <sql-type jdbc-type="-155" hibernate-type="java.time.OffsetDateTime"/>
+    </type-mapping>
+    <table-filter match-name="sysdiagrams" exclude="true"/>
+    <table-filter match-name=".*"/>
+</hibernate-reverse-engineering>

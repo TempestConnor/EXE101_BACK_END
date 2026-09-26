@@ -1,0 +1,80 @@
+import java.nio.file.*;
+import java.sql.*;
+import java.util.*;
+import java.util.regex.*;
+
+/** Applies SQL Server metadata that Hibernate Tools does not fully preserve. */
+public class NormalizeEntities {
+    public static void main(String[] args) throws Exception {
+        Path directory = Path.of(args[0]);
+        Properties properties = new Properties();
+        properties.setProperty("user", System.getenv("DB_USERNAME"));
+        properties.setProperty("password", System.getenv("DB_PASSWORD"));
+        try (Connection connection = DriverManager.getConnection(System.getenv("DB_URL"), properties)) {
+            String query = """
+                SELECT t.name table_name, c.name column_name, ty.name type_name,
+                       c.max_length, c.precision, c.scale
+                FROM sys.tables t JOIN sys.schemas s ON t.schema_id = s.schema_id
+                JOIN sys.columns c ON c.object_id = t.object_id
+                JOIN sys.types ty ON ty.user_type_id = c.user_type_id
+                WHERE s.name = 'dbo' AND t.name <> 'sysdiagrams'
+                ORDER BY t.name, c.column_id
+                """;
+            Map<Path, String> sources = new LinkedHashMap<>();
+            try (Statement statement = connection.createStatement(); ResultSet rows = statement.executeQuery(query)) {
+                while (rows.next()) {
+                    String table = rows.getString("table_name");
+                    String column = rows.getString("column_name");
+                    String type = rows.getString("type_name");
+                    int length = rows.getInt("max_length");
+                    String definition = type;
+                    if (Set.of("nvarchar", "nchar", "varchar", "char", "binary", "varbinary").contains(type)) {
+                        int characters = type.startsWith("n") ? length / 2 : length;
+                        definition += "(" + (length == -1 ? "max" : characters) + ")";
+                    } else if (Set.of("decimal", "numeric").contains(type)) {
+                        definition += "(" + rows.getInt("precision") + "," + rows.getInt("scale") + ")";
+                    } else if (Set.of("datetimeoffset", "datetime2", "time").contains(type)) {
+                        definition += "(" + rows.getInt("scale") + ")";
+                    }
+                    // Composite key classes carry their own @Column annotations.
+                    for (Path path : List.of(directory.resolve(table + ".java"), directory.resolve(table + "Id.java"))) {
+                        if (!Files.exists(path)) continue;
+                        String source = sources.containsKey(path) ? sources.get(path) : Files.readString(path);
+                        Pattern annotation = Pattern.compile("@Column\\(name=\"" + Pattern.quote(column) + "\"([^)]*)\\)");
+                        Matcher matcher = annotation.matcher(source);
+                        if (!matcher.find()) continue;
+                        String options = matcher.group(1).replaceAll(",\\s*length=\\d+", "");
+                        if (Set.of("nvarchar", "nchar", "varchar", "char", "binary", "varbinary").contains(type)) {
+                            int size = length == -1 ? Integer.MAX_VALUE : type.startsWith("n") ? length / 2 : length;
+                            options += ", length=" + size;
+                        }
+                        String extra = "";
+                        if (type.equals("nvarchar") || type.equals("nchar")) {
+                            extra += "@org.hibernate.annotations.Nationalized\n    ";
+                        }
+                        if (type.equals("datetimeoffset")) {
+                            extra += "@org.hibernate.annotations.TimeZoneStorage(org.hibernate.annotations.TimeZoneStorageType.NATIVE)\n    ";
+                        }
+                        if (type.equals("timestamp") || type.equals("rowversion")) {
+                            extra += "@jakarta.persistence.Version\n    @org.hibernate.annotations.Generated(event={org.hibernate.generator.EventType.INSERT, org.hibernate.generator.EventType.UPDATE})\n    ";
+                            options += ", insertable=false, updatable=false";
+                        }
+                        String replacement = extra + "@Column(name=\"" + column + "\"" + options + ", columnDefinition=\"" + definition + "\")";
+                        source = matcher.replaceFirst(Matcher.quoteReplacement(replacement));
+                        // Filtered unique indexes cannot be represented by JPA unique=true.
+                        source = source.replace(", unique=true", "");
+                        source = source.replaceAll("(?s), uniqueConstraints = .*?\\n\\)", "\n)");
+                        source = source.replaceAll("import jakarta.persistence.UniqueConstraint;\\r?\\n", "");
+                        source = source.replaceAll("// Generated .*? by Hibernate Tools", "// Generated by Hibernate Tools");
+                        if (!source.contains("schema=\"dbo\"")) {
+                            source = source.replace("@Table(name=\"" + table + "\"", "@Table(name=\"" + table + "\", schema=\"dbo\"");
+                        }
+                        sources.put(path, source);
+                    }
+                }
+            }
+            for (var entry : sources.entrySet()) Files.writeString(entry.getKey(), entry.getValue());
+            System.out.println("Applied SQL Server mappings to " + sources.size() + " generated Java files.");
+        }
+    }
+}
