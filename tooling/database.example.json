@@ -1,4 +1,5 @@
 {
+  "url": "jdbc:sqlserver://localhost:1433;databaseName=CuratedArtworkMarketplace;encrypt=true;trustServerCertificate=true;loginTimeout=10",
   "username": "sa",
   "password": "replace-with-your-local-password"
 }

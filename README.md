@@ -7,9 +7,10 @@ Maven does not need to be installed separately.
 ## Local development (PowerShell)
 
 The existing database is `CuratedArtworkMarketplace` on `.\SQLEXPRESS`.
-SQL authentication is used. Local credentials are in `.local/database.json`,
+SQL authentication is used. Local connection settings are in `.local/database.json`,
 which is ignored by Git. On another machine, copy `tooling/database.example.json`
-to that location and fill in the credentials.
+to that location and fill in the URL and credentials. Replace the example URL's
+host and port with your SQL Server TCP address.
 
 ```powershell
 .\scripts\dev.ps1 Verify
@@ -20,11 +21,15 @@ to that location and fill in the credentials.
 executes a read-only query for each of the 45 entities. It does not insert or
 update data. `Run` starts the backend on port 8080. No API endpoints are implemented yet.
 
-The script discovers the local SQL Express TCP port from the Windows registry.
-You can override it with `DB_URL`; `DB_USERNAME` and `DB_PASSWORD` override the
-local credentials file. The automatic localhost URL trusts the development
+The script loads `url`, `username`, and `password` from `.local/database.json`.
+Environment variables `DB_URL`, `DB_USERNAME`, and `DB_PASSWORD` override the
+corresponding file values. A missing URL produces a configuration error.
+The example localhost URL trusts the development
 server's certificate. For deployed environments, supply a JDBC URL with normal
 certificate verification and the appropriate credentials through environment variables.
+
+When launching Java directly from an IDE, configure these environment variables
+in the run configuration; the JSON file is loaded only by `scripts/dev.ps1`.
 
 To build without connecting to SQL Server:
 

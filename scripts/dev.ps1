@@ -9,6 +9,7 @@ New-Item -ItemType Directory -Force $localDir | Out-Null
 $configPath = Join-Path $localDir 'database.json'
 if (Test-Path $configPath) {
     $config = Get-Content $configPath -Raw | ConvertFrom-Json
+    if (-not $env:DB_URL) { $env:DB_URL = $config.url }
     if (-not $env:DB_USERNAME) { $env:DB_USERNAME = $config.username }
     if (-not $env:DB_PASSWORD) { $env:DB_PASSWORD = $config.password }
 }
@@ -16,13 +17,8 @@ if (-not $env:DB_USERNAME -or -not $env:DB_PASSWORD) {
     throw 'Set DB_USERNAME and DB_PASSWORD, or create .local/database.json using tooling/database.example.json.'
 }
 
-# Local SQL Express development only. Override DB_URL for another server.
 if (-not $env:DB_URL) {
-    $instance = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL').SQLEXPRESS
-    $tcp = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\$instance\MSSQLServer\SuperSocketNetLib\Tcp\IPAll"
-    $port = if ($tcp.TcpPort) { $tcp.TcpPort } else { $tcp.TcpDynamicPorts }
-    if (-not $port -or $port -eq '0') { throw 'No SQL Express TCP port found. Set DB_URL explicitly.' }
-    $env:DB_URL = "jdbc:sqlserver://localhost:$port;databaseName=CuratedArtworkMarketplace;encrypt=true;trustServerCertificate=true;loginTimeout=10"
+    throw 'Set DB_URL, or set url in .local/database.json using tooling/database.example.json.'
 }
 
 switch ($Action) {
