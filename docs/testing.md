@@ -1,5 +1,9 @@
 ﻿# Testing
 
+For changes affecting financial behavior, also follow the mandatory
+[financial correctness requirements](financial-correctness.md), including
+integration tests for affected financial invariants, rollback, and concurrency.
+
 JUnit 6, Mockito, AssertJ. Tests mirror the feature’s own layer subpackages, and not every layer needs one: a service test is always there, because that’s where the business logic actually lives.
 
 A controller test (`@WebMvcTest`) earns its place once the endpoint has validation, status mapping, or a response shape worth asserting on; a repository test (`@DataJpaTest`) is for a custom `@Query` or `Specification` — never for plain CRUD, which Spring Data already tested for you.

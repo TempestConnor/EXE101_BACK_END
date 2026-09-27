@@ -2,6 +2,7 @@
 
 ## Requirements and conflicts
 
+- Read [implementation scope](implementation-scope.md) before planning or implementing features. Its approved priorities and deferrals override broader scope and suggested implementation order in the business rules and feature specification; this intentional scope override is not an unresolved conflict. Behavioral rules and open questions for in-scope features still apply.
 - Read [README.md](../README.md) for setup and persistence conventions, [business rules](Marketplace_Business_Rules_Final.md) for business behavior and scope, and [feature specifications](EXE101_Features_Specification.md) for F01–F21, acceptance criteria, cross-feature rules, and open questions.
 - The feature specification derives from the business rules; SQL is an implementation baseline, not a source of additional business policy. Report conflicting passages or implementation mismatches explicitly; do not silently resolve them by inventing policy or changing the schema.
 - Consult section D of the feature specification (Q01–Q19) and feature-level **Needs Clarification** notes before implementing affected behavior. Ask for the missing decision, explain the affected path, and continue independent work. Do not turn an unresolved question into an assumed default.

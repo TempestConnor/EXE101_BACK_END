@@ -5,7 +5,19 @@ Standards: [docs/java-style.md](docs/java-style.md) · [docs/annotations.md](doc
 [docs/mappers.md](docs/mappers.md) · [docs/exceptions.md](docs/exceptions.md) ·
 [docs/testing.md](docs/testing.md) · [docs/logging.md](docs/logging.md)
 
-Read [repository guidance](docs/repository-guidance.md) for requirements, conflicts, database constraints, build commands, and validation reporting. Its repository-specific exceptions take precedence over the supplied topic templates.
+Read [repository guidance](docs/repository-guidance.md) for requirements, conflicts, database constraints, build commands, and validation reporting. If there are conflicts between the repository guidance and the topic files, you must raise a question to the user to resolve it.
+
+Read [implementation scope](docs/implementation-scope.md) before planning or implementing features. It defines the agreed release scope, priorities, and deferrals, and takes precedence over broader specification scope and suggested implementation order. Preserve the behavioral requirements for features that remain in scope.
+
+## Financial correctness
+
+Before planning, implementing, or reviewing changes affecting prices, checkout totals,
+payments, refunds, Artist proceeds, payouts, or payment-triggered entitlements, read
+and follow [financial correctness](docs/financial-correctness.md). This includes
+shared code that affects these paths and Commission financial flows when in scope.
+
+Its implementation, testing, and completion requirements are mandatory, including
+for the controlled class/demo release.
 
 ## Stack
 
