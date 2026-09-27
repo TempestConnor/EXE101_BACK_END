@@ -17,9 +17,13 @@ host and port with your SQL Server TCP address.
 .\scripts\dev.ps1 Run
 ```
 
+Customer authentication requires `JWT_SECRET` before running the application;
+see [F01 setup and API contract](docs/customer-authentication.md).
+
 `Verify` compiles/packages the application, validates all entity mappings, and
 executes a read-only query for each of the 45 entities. It does not insert or
-update data. `Run` starts the backend on port 8080. No API endpoints are implemented yet.
+update data. `Run` starts the backend on port 8080. Customer registration, token
+login and the authenticated profile endpoint are implemented.
 
 The script loads `url`, `username`, and `password` from `.local/database.json`.
 Environment variables `DB_URL`, `DB_USERNAME`, and `DB_PASSWORD` override the

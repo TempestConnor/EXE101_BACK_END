@@ -2,6 +2,11 @@
 
 Decision recorded: 27 September 2026.
 
+F01 increment: Customer registration and bearer-token login use the approved
+password, verification, and blocking policies recorded in
+[Customer authentication](customer-authentication.md). Account deletion remains
+deferred. F02 staff authentication and Artist authorization is the next dependency.
+
 The initial release is a controlled class/demo project. The agreed priority is to
 complete standard orders first, implement basic Artist suspension second, and
 consider Commissions third. This is an implementation sequence, not a removal of
