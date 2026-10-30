@@ -1,4 +1,4 @@
-package com.exe101.customer.security;
+package com.exe101.common.security;
 
 import com.exe101.common.error.AppErrorMessage;
 import jakarta.servlet.http.HttpServletRequest;
@@ -22,7 +22,7 @@ public class SecurityProblemHandler implements AuthenticationEntryPoint, AccessD
         HttpServletRequest request, HttpServletResponse response, AuthenticationException exception
     ) throws IOException {
         if (exception instanceof AuthenticationServiceException) {
-            log.error("[CUSTOMER] - ACTION: authentication: infrastructure failure");
+            log.error("[SECURITY] - ACTION: authentication: infrastructure failure");
             write(response, AppErrorMessage.INTERNAL_ERROR);
 
             return;

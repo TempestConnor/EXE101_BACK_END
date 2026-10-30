@@ -10,4 +10,6 @@ public interface CustomerService {
     Customer authenticate(CustomerLogin login);
 
     Customer requireActive(Long userId);
+
+    Customer getActive(Long userId);
 }

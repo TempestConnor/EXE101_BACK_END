@@ -113,10 +113,9 @@ test briefly commits a newly created account under a unique
 `f01-test-<UUID>@example.invalid` email and removes that test account afterward.
 Do not point these write tests at a production database.
 
-The next feature is F02: separate staff authentication and audited Admin Artist
-authorization. Its staff provisioning/recovery questions still require a product
-decision. Deletion and historical entitlement recovery under Q16 remain unresolved
-and deferred; this F01 increment does not settle them.
+Staff authentication and Artist authorization are documented in
+[F02](staff-artist-authorization.md). Deletion and historical entitlement recovery
+under Q16 remain unresolved and deferred; this F01 increment does not settle them.
 
 Implementation references: [Spring Security JWT support](https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html)
 and [password storage](https://docs.spring.io/spring-security/reference/features/authentication/password-storage.html).

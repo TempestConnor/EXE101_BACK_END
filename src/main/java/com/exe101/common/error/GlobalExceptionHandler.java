@@ -16,7 +16,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(AppException.class)
     public ResponseEntity<Object> handleApplication(AppException exception) {
         AppErrorMessage error = exception.getError();
-        log.warn("[CUSTOMER] - ACTION: reject: code: {}", error);
+        log.warn("[API] - ACTION: reject: code: {}", error);
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(error.getStatus(), error.getDetail());
         problem.setProperty("errorCode", error.name());
         HttpHeaders headers = new HttpHeaders();

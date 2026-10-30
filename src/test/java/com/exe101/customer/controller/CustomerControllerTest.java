@@ -3,15 +3,20 @@ package com.exe101.customer.controller;
 import com.exe101.common.error.AppErrorMessage;
 import com.exe101.common.error.AppException;
 import com.exe101.common.error.GlobalExceptionHandler;
-import com.exe101.customer.config.CustomerSecurityConfiguration;
+import com.exe101.common.security.SecurityConfiguration;
+import com.exe101.common.security.SecurityProblemHandler;
 import com.exe101.customer.config.CustomerTokenConfiguration;
 import com.exe101.customer.mapper.CustomerMapperImpl;
 import com.exe101.customer.model.Customer;
 import com.exe101.customer.security.CustomerAuthenticationConverter;
 import com.exe101.customer.security.CustomerTokenIssuer;
-import com.exe101.customer.security.SecurityProblemHandler;
 import com.exe101.customer.service.CustomerLoginServiceImpl;
 import com.exe101.customer.service.CustomerService;
+import com.exe101.staff.config.StaffTokenConfiguration;
+import com.exe101.staff.model.Staff;
+import com.exe101.staff.security.StaffAuthenticationConverter;
+import com.exe101.staff.security.StaffTokenIssuer;
+import com.exe101.staff.service.StaffService;
 import java.time.OffsetDateTime;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -36,15 +41,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(CustomerController.class)
 @Import({CustomerMapperImpl.class, CustomerLoginServiceImpl.class, CustomerTokenConfiguration.class,
-    CustomerSecurityConfiguration.class, CustomerTokenIssuer.class, CustomerAuthenticationConverter.class,
-    SecurityProblemHandler.class, GlobalExceptionHandler.class})
+    SecurityConfiguration.class, CustomerTokenIssuer.class, CustomerAuthenticationConverter.class,
+    SecurityProblemHandler.class, GlobalExceptionHandler.class, StaffTokenConfiguration.class,
+    StaffAuthenticationConverter.class, StaffTokenIssuer.class})
 class CustomerControllerTest {
     @Autowired
     private MockMvc mvc;
     @Autowired
     private CustomerTokenIssuer issuer;
+    @Autowired
+    private StaffTokenIssuer staffIssuer;
     @MockitoBean
     private CustomerService customers;
+    @MockitoBean
+    private StaffService staff;
 
     @Test
     void registration_returns_only_public_customer_fields_ok() throws Exception {
@@ -200,6 +210,19 @@ class CustomerControllerTest {
         mvc.perform(get("/staff").header("Authorization", "Bearer " + token))
             .andExpect(status().isForbidden())
             .andExpect(jsonPath("$.errorCode").value("ACCESS_DENIED"));
+    }
+
+    @Test
+    void staff_token_on_customer_endpoint_ko() throws Exception {
+        // given
+        var token = staffIssuer.issue(42L).getAccessToken();
+        when(staff.requireActive(42L)).thenReturn(new Staff(42L, "admin", "ADMIN"));
+
+        // when / then
+        mvc.perform(get("/customers/me").header("Authorization", "Bearer " + token))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.errorCode").value("ACCESS_DENIED"));
+        verifyNoInteractions(customers);
     }
 
     @Test

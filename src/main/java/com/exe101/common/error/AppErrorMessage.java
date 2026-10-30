@@ -9,8 +9,11 @@ import org.springframework.http.HttpStatus;
 public enum AppErrorMessage {
     EMAIL_ALREADY_REGISTERED(HttpStatus.CONFLICT, "Email is already registered."),
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "Invalid credentials or account unavailable."),
-    AUTHENTICATION_REQUIRED(HttpStatus.UNAUTHORIZED, "A valid customer access token is required."),
+    AUTHENTICATION_REQUIRED(HttpStatus.UNAUTHORIZED, "A valid access token is required."),
     ACCESS_DENIED(HttpStatus.FORBIDDEN, "Access is denied."),
+    USER_NOT_FOUND(HttpStatus.NOT_FOUND, "User was not found."),
+    USER_NOT_ACTIVE(HttpStatus.CONFLICT, "User account is not active."),
+    ARTIST_ALREADY_GRANTED(HttpStatus.CONFLICT, "User already has an Artist Profile."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "The request could not be completed.");
 
     private final HttpStatus status;

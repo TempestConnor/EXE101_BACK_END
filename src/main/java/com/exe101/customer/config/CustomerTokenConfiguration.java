@@ -1,6 +1,7 @@
 package com.exe101.customer.config;
 
-import com.exe101.customer.security.CustomerTokenValidator;
+import com.exe101.common.security.AccessTokenValidator;
+import com.exe101.customer.security.CustomerTokenIssuer;
 import java.time.Clock;
 import java.util.Base64;
 import java.util.Map;
@@ -51,7 +52,8 @@ public class CustomerTokenConfiguration {
     public JwtDecoder customerJwtDecoder(SecretKey customerSigningKey, Clock customerClock) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(customerSigningKey)
             .macAlgorithm(MacAlgorithm.HS256).build();
-        decoder.setJwtValidator(new CustomerTokenValidator(customerClock));
+        decoder.setJwtValidator(new AccessTokenValidator(
+            customerClock, CustomerTokenIssuer.issuer, CustomerTokenIssuer.audience));
 
         return decoder;
     }

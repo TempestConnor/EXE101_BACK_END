@@ -5,7 +5,12 @@ Decision recorded: 27 September 2026.
 F01 increment: Customer registration and bearer-token login use the approved
 password, verification, and blocking policies recorded in
 [Customer authentication](customer-authentication.md). Account deletion remains
-deferred. F02 staff authentication and Artist authorization is the next dependency.
+deferred.
+
+F02 increment: staff login, Admin bootstrap and audited Admin-only Artist
+authorization follow the decisions recorded in
+[Staff authentication and Artist authorization](staff-artist-authorization.md).
+The self-purchase guard is enforced with Cart and Order creation (F09/F10).
 
 Requirements change recorded 31 October 2026: the site is the storefront of one
 Artist team, with no Platform Fee, held funds released to each Artist's own

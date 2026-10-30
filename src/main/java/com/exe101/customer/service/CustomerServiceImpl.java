@@ -81,12 +81,26 @@ public class CustomerServiceImpl implements CustomerService {
         return mapper.toModel(entity);
     }
 
-    private void requireActiveAccount(MarketplaceUser entity) {
-        boolean active = activeStatus.equals(entity.getStatus()) && entity.getDeletedAt() == null;
+    @Override
+    public Customer getActive(Long userId) {
+        MarketplaceUser entity = repository.findById(userId)
+            .orElseThrow(() -> new AppException(AppErrorMessage.USER_NOT_FOUND));
 
-        if (!active) {
+        if (!isActive(entity)) {
+            throw new AppException(AppErrorMessage.USER_NOT_ACTIVE);
+        }
+
+        return mapper.toModel(entity);
+    }
+
+    private void requireActiveAccount(MarketplaceUser entity) {
+        if (!isActive(entity)) {
             throw new AppException(AppErrorMessage.INVALID_CREDENTIALS);
         }
+    }
+
+    private boolean isActive(MarketplaceUser entity) {
+        return activeStatus.equals(entity.getStatus()) && entity.getDeletedAt() == null;
     }
 
     private String normalizeEmail(String email) {
