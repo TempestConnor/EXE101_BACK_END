@@ -57,15 +57,30 @@ existing convention.
 1. If that branch already exists locally or on `origin`, stop and report it. Do not
    reset or reuse it.
 2. Check whether the current work is on main:
-   `git merge-base --is-ancestor HEAD origin/main`.
-   - **Exit 0 (merged):** base is `origin/main`.
-   - **Not merged:** the previous feature is not on main yet. Ask the user (with
-     AskUserQuestion) whether to branch from the **current branch (stacked —
-     recommended when the new feature depends on the unmerged one)** or from
-     `origin/main`. Name the unmerged commits (`git log --oneline origin/main..HEAD`)
-     in the question.
+   `git merge-base --is-ancestor HEAD main` (local `main`, which may be ahead of
+   `origin/main` after an earlier local merge; fall back to `origin/main` if there
+   is no local `main`).
+   - **Exit 0 (merged):** base is `main`.
+   - **Not merged:** decide from evidence whether the new feature depends on the
+     unmerged work (`git log --oneline main..HEAD`). It depends on it when the
+     new feature's spec **Implementation** line, functional requirements or the
+     scope document need entities, endpoints or behaviour that this unmerged
+     work introduces. Needing something already on `main` is not a dependency.
+     - **Depends — stack:** base is the current branch.
+     - **Independent — merge, then branch from main:** first run the current
+       branch's tests (`.\mvnw.cmd clean package`). If they fail, stop and report
+       the output; do not merge. If they pass, ask the user (with
+       AskUserQuestion) to confirm merging the current branch into `main`,
+       naming the unmerged commits. On a yes:
+       `git switch main`, `git merge --ff-only origin/main` (stop if this fails),
+       `git merge --no-ff <current branch>`. Stop on any conflict and report it;
+       do not resolve conflicts on the user's behalf. Base is then `main`.
+     - **Unclear:** ask the user which applies, giving the evidence both ways.
+   State which rule applied and the dependency evidence in the brief.
 3. `git switch -c _feature_f<NN> <base>`.
-4. Do not push. Offer `git push -u origin _feature_f<NN>` as a next step.
+4. Do not push, neither the new branch nor `main`. Offer
+   `git push -u origin _feature_f<NN>` (and `git push origin main` after a merge)
+   as next steps.
 
 ## 5. Kickoff brief
 
@@ -73,7 +88,8 @@ Read the feature's section in `docs/EXE101_Features_Specification.md`, the busin
 rules it cites in `docs/Marketplace_Business_Rules_Final.md` (including the
 31 October 2026 amendment), and section D (Q01–Q19). Then report, concisely:
 
-1. **Feature** — ID, title, branch, base, and whether it is stacked.
+1. **Feature** — ID, title, branch, base, whether it is stacked or a merge into
+   `main` happened, and the dependency evidence.
 2. **Scope for this increment** — what the spec requires, as amended by
    `implementation-scope.md`; call out anything explicitly out of scope.
 3. **Acceptance criteria** — from the spec, verbatim or tightly paraphrased.
