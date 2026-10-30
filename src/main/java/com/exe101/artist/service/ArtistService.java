@@ -5,4 +5,8 @@ import com.exe101.artist.model.ArtistGrant;
 
 public interface ArtistService {
     Artist grant(ArtistGrant grant, Long staffId);
+
+    Artist get(Long artistId);
+
+    Artist getByUserId(Long userId);
 }

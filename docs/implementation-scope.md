@@ -16,6 +16,10 @@ F04 increment: Customer address book, Admin-maintained supported provinces and t
 [Customer addresses and supported delivery areas](address-delivery-areas.md). Writing the Order shipping-address
 snapshot and the shipping charge (Q08) belong to F10.
 
+F05 increment: Artwork drafts, publication, Admin moderation, controlled tags and public preview images follow
+[Artwork catalog, preview media and tags](artwork-catalog.md). Purchase availability waits for Listings (F06);
+protected source and purchased files remain F08.
+
 Requirements change recorded 31 October 2026: the site is the storefront of one
 Artist team, with no Platform Fee, held funds released to each Artist's own
 account, a 48-hour post-delivery return window, split Commission payments, and

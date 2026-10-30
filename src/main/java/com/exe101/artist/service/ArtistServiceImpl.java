@@ -73,6 +73,22 @@ public class ArtistServiceImpl implements ArtistService {
         return mapper.toModel(saved);
     }
 
+    @Override
+    public Artist get(Long artistId) {
+        ArtistProfile entity = repository.findById(artistId)
+            .orElseThrow(() -> new AppException(AppErrorMessage.ARTIST_PROFILE_REQUIRED));
+
+        return mapper.toModel(entity);
+    }
+
+    @Override
+    public Artist getByUserId(Long userId) {
+        ArtistProfile entity = repository.findByUserId(userId)
+            .orElseThrow(() -> new AppException(AppErrorMessage.ARTIST_PROFILE_REQUIRED));
+
+        return mapper.toModel(entity);
+    }
+
     private String blankToNull(String value) {
         if (value == null || value.isBlank()) {
             return null;

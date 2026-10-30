@@ -60,6 +60,13 @@ public class SecurityConfiguration {
                 .requestMatchers(HttpMethod.GET, "/provinces").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/provinces").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/provinces/*/support").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/tags/active").hasRole("CUSTOMER")
+                .requestMatchers(HttpMethod.GET, "/tags").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/tags").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/tags/*").hasRole("ADMIN")
+                .requestMatchers("/artworks", "/artworks/**").hasRole("CUSTOMER")
+                .requestMatchers("/admin/artworks", "/admin/artworks/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/catalog/artworks", "/catalog/artworks/**").permitAll()
                 .anyRequest().denyAll())
             .exceptionHandling(errors -> errors
                 .authenticationEntryPoint(problems)

@@ -32,8 +32,12 @@ The example localhost URL trusts the development
 server's certificate. For deployed environments, supply a JDBC URL with normal
 certificate verification and the appropriate credentials through environment variables.
 
-When launching Java directly from an IDE, configure these environment variables
-in the run configuration; the JSON file is loaded only by `scripts/dev.ps1`.
+When launching Java directly from an IDE or with `.\mvnw.cmd spring-boot:run`, the
+application reads `.local/application.properties` (ignored by Git), which can define
+`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET` and `STORAGE_ROOT`. Real environment
+variables with the same names still take precedence. The JSON file is loaded only by
+`scripts/dev.ps1`. Artwork preview images are stored under `STORAGE_ROOT`
+(default `.local/storage`).
 
 To build without connecting to SQL Server:
 
