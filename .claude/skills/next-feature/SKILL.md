@@ -11,7 +11,8 @@ allowed-tools: Bash(git status:*), Bash(git fetch:*), Bash(git branch:*), Bash(g
 Requested feature (may be empty): `$ARGUMENTS`
 
 Work from **committed** code only. Do not write production code or tests in this
-command; its output is a branch and a kickoff brief.
+command; its output is a branch and a kickoff brief. The feature is implemented
+afterwards and committed automatically (see the end of section 5, item 8).
 
 ## 1. Preconditions
 
@@ -117,6 +118,18 @@ rules it cites in `docs/Marketplace_Business_Rules_Final.md` (including the
    code. Change or drop a listed behaviour only by naming it and giving the reason,
    and wait for the user to agree. Do not write tests before the implementation, and
    do not report expected failures of tests for code that does not exist yet.
+
+   When the implementation is done, commit it on `_feature_f<NN>` without asking,
+   once all of these hold:
+   - every approved test is written, and `.\mvnw.cmd clean package` passes;
+   - the current branch is still `_feature_f<NN>`;
+   - `git status --porcelain` lists only changes made for this feature. If it shows
+     anything else, stop and ask instead of committing.
+
+   Stage those files and commit with the subject `f<NN> implemented.`, a short body
+   listing what was built and any deferred items, and the session's attribution
+   lines. Do not push; offer `git push -u origin _feature_f<NN>` as the next step.
+   If the build fails, fix it or report the output. Do not commit a failing build.
 9. **Unfinished items in earlier features** — gaps found in step 2/3.
 
 End by asking which blocking questions the user can answer now, and whether the test
