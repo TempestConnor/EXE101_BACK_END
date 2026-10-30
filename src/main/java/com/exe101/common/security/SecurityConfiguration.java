@@ -55,6 +55,11 @@ public class SecurityConfiguration {
                 .requestMatchers(HttpMethod.POST, "/staff/login").permitAll()
                 .requestMatchers(HttpMethod.GET, "/customers/me").hasRole("CUSTOMER")
                 .requestMatchers(HttpMethod.POST, "/artists").hasRole("ADMIN")
+                .requestMatchers("/addresses", "/addresses/*").hasRole("CUSTOMER")
+                .requestMatchers(HttpMethod.GET, "/provinces/supported").hasRole("CUSTOMER")
+                .requestMatchers(HttpMethod.GET, "/provinces").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/provinces").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/provinces/*/support").hasRole("ADMIN")
                 .anyRequest().denyAll())
             .exceptionHandling(errors -> errors
                 .authenticationEntryPoint(problems)

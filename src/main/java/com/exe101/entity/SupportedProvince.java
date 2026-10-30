@@ -4,6 +4,8 @@ package com.exe101.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import static jakarta.persistence.GenerationType.IDENTITY;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
@@ -13,10 +15,12 @@ import java.time.OffsetDateTime;
  */
 @Entity
 @Table(name="SupportedProvince", schema="dbo"
+    
 )
 public class SupportedProvince  implements java.io.Serializable {
 
 
+     private Long provinceId;
      private String provinceCode;
      private String provinceName;
      private boolean isSupported;
@@ -32,7 +36,17 @@ public class SupportedProvince  implements java.io.Serializable {
        this.updatedAt = updatedAt;
     }
    
-     @Id 
+     @Id @GeneratedValue(strategy=IDENTITY)
+
+    
+    @Column(name="ProvinceId", nullable=false, columnDefinition="bigint")
+    public Long getProvinceId() {
+        return this.provinceId;
+    }
+    
+    public void setProvinceId(Long provinceId) {
+        this.provinceId = provinceId;
+    }
 
     
     @Column(name="ProvinceCode", nullable=false, length=20, columnDefinition="varchar(20)")

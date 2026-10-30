@@ -8,13 +8,12 @@ import com.exe101.audit.model.AuditEntry;
 import com.exe101.audit.service.AuditService;
 import com.exe101.common.error.AppErrorMessage;
 import com.exe101.common.error.AppException;
+import com.exe101.common.persistence.DatabaseErrors;
 import com.exe101.customer.model.Customer;
 import com.exe101.customer.service.CustomerService;
 import com.exe101.entity.ArtistProfile;
-import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -29,8 +28,6 @@ public class ArtistServiceImpl implements ArtistService {
     private static String activeStatus = "ACTIVE";
     private static String grantAction = "ARTIST_PROFILE_GRANTED";
     private static String artistTarget = "ArtistProfile";
-    // SQL Server duplicate-key errors; UserId is the table's only unique key besides the identity.
-    private static Set<Integer> duplicateKeyErrors = Set.of(2601, 2627);
     private final ArtistRepository repository;
     private final ArtistEntityMapper mapper;
     private final CustomerService customerService;
@@ -55,7 +52,7 @@ public class ArtistServiceImpl implements ArtistService {
         try {
             saved = repository.saveAndFlush(entity);
         } catch (DataIntegrityViolationException exception) {
-            if (isDuplicateKey(exception)) {
+            if (DatabaseErrors.isDuplicateKey(exception)) {
                 throw new AppException(AppErrorMessage.ARTIST_ALREADY_GRANTED);
             }
 
@@ -82,19 +79,5 @@ public class ArtistServiceImpl implements ArtistService {
         }
 
         return value.strip();
-    }
-
-    private boolean isDuplicateKey(Throwable exception) {
-        Throwable cause = exception;
-
-        while (cause != null) {
-            if (cause instanceof SQLException sql) {
-                return duplicateKeyErrors.contains(sql.getErrorCode());
-            }
-
-            cause = cause.getCause();
-        }
-
-        return false;
     }
 }

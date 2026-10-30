@@ -17,4 +17,6 @@ The rest reads like a normal style guide: no more than 3 parameters on a method 
 
 Check nullness and emptiness before you touch a collection or a string. Skip `throws` clauses in favor of unchecked exceptions, skip comments except for cron expressions, regex patterns, `TODO`s, or given/when/then separators in tests, and use `@Override` whenever you’re overriding something.
 
+Use an `enum` only for a closed set whose values change only together with the code that handles them, such as error codes or statuses the code branches on. A set that operators, Admins or data can extend without a code change (provinces, categories, tags, other configurable lists) belongs in a database table, never in an enum or a hard-coded list.
+
 For one or two variables, a plain `== null` reads better than `Objects.isNull()`. Wrap compound conditions in a named boolean instead of inlining them, prefer early returns over nested `if`/`else`, and skip both wildcard imports and javadocs.

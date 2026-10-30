@@ -12,6 +12,10 @@ authorization follow the decisions recorded in
 [Staff authentication and Artist authorization](staff-artist-authorization.md).
 The self-purchase guard is enforced with Cart and Order creation (F09/F10).
 
+F04 increment: Customer address book, Admin-maintained supported provinces and the checkout address check follow
+[Customer addresses and supported delivery areas](address-delivery-areas.md). Writing the Order shipping-address
+snapshot and the shipping charge (Q08) belong to F10.
+
 Requirements change recorded 31 October 2026: the site is the storefront of one
 Artist team, with no Platform Fee, held funds released to each Artist's own
 account, a 48-hour post-delivery return window, split Commission payments, and
