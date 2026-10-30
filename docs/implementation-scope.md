@@ -7,6 +7,13 @@ password, verification, and blocking policies recorded in
 [Customer authentication](customer-authentication.md). Account deletion remains
 deferred. F02 staff authentication and Artist authorization is the next dependency.
 
+Requirements change recorded 31 October 2026: the site is the storefront of one
+Artist team, with no Platform Fee, held funds released to each Artist's own
+account, a 48-hour post-delivery return window, split Commission payments, and
+deactivation instead of suspension/appeals.
+See the [business rules amendment](Marketplace_Business_Rules_Final.md#amendment--single-artist-team-31-october-2026).
+Its effects on the priorities below are noted in place.
+
 The initial release is a controlled class/demo project. The agreed priority is to
 complete standard orders first, implement basic Artist suspension second, and
 consider Commissions third. This is an implementation sequence, not a removal of
@@ -51,6 +58,26 @@ Artist availability checks from F03. Completion means an end-to-end workflow:
 5. Artist proceeds and payouts are tracked, and eligible physical-item and
    shipping refunds can be handled under the specified rules.
 
+Under the 31 October amendment:
+
+- F07 retains manufacturing-cost review but not Platform Fee configuration. Order
+  Item and Quote snapshots record a `0` fee rate and `0` fee amount, and Artist
+  proceeds equal the full fee base.
+- F14 becomes release of held proceeds to each Artist's own account. Digital
+  proceeds are released on payment. Physical proceeds are released when the
+  48-hour return window closes with no open or approved return.
+- F12 grants a physical item's included files when that window closes, not on
+  delivery.
+- F15 adds post-delivery return requests within 48 hours.
+- F01 needs recorded acceptance of the customer Policy at registration; not yet
+  implemented. It depends on a final, versioned Policy text.
+- The license contract for digital purchases is a new Policy requirement. Its
+  placement in this priority needs a scope decision before implementation.
+
+These changes may need schema additions (consent, contracts, return window).
+The database remains the schema authority, so each needs a separate schema
+decision.
+
 Checkout alone is not completion. Payment deduplication, file authorization,
 historical retention, financial correctness, and required Admin audit remain
 part of this priority. Commission-specific behavior in shared payment, file,
@@ -67,12 +94,18 @@ affected paths, including payment anomalies, shipping/tax inputs, rounding,
 fulfillment transitions, and refund/payout coordination. Deferral is not a
 default answer to these questions.
 
-## Priority 2: Basic Artist suspension and reinstatement
+## Priority 2: Artist deactivation
+
+Under the 31 October amendment, suspension is replaced by member deactivation.
+Whether deactivation can be reversed is unresolved; do not implement reactivation
+until it is decided. The existing `SUSPENDED` status and suspension history
+structures are the presumed representation, subject to confirmation when this
+priority starts.
 
 After the standard Order workflow, implement the reduced F03 workflow:
 
-- Admin-only indefinite suspension and manual reinstatement.
-- Reasons, staff identity, timestamps, and retained suspension history.
+- Admin-only deactivation (indefinite).
+- Reasons, staff identity, timestamps, and retained deactivation history.
 - Transactional audit of status changes.
 - New-purchase restrictions enforced through Artist availability rather than
   rewriting every Listing.
@@ -83,15 +116,17 @@ This is planned secondary work, subject to available project time. It is not a
 prerequisite for completing the standard-order demo milestone, apart from the
 availability checks retained in priority 1.
 
-Timed suspension, automatic expiry/extension, and the appeal workflow are deferred.
-For the controlled demo, an appeal may be discussed with the project operator
-and followed by audited reinstatement. This temporary process does not satisfy
-the full specification's retained appeal-submission/decision workflow.
+Timed suspension, automatic expiry/extension, and the appeal workflow are removed
+from the product by the 31 October amendment, not merely deferred.
 
 ## Priority 3: Commissions
 
 F16–F20 and the Commission-specific extensions to F03, F08, F11, F14 and F21 are
-tertiary work. Start this journey after standard orders and basic suspension,
+tertiary work. The 31 October amendment changes this journey substantially:
+sketch stage, two 50% payments per Quote, tracked work stages, progress-based
+refunds, preview-only review, a 7-day final-payment deadline, a portfolio
+opt-in, and license contracts. Its lifecycle needs schema review before
+implementation. Start this journey after standard orders and basic suspension,
 unless the user explicitly changes priorities. Commissions are not required to
 complete the standard-order demo milestone.
 
@@ -129,8 +164,9 @@ defer the automatic recording required by F21 and business rules section 29.
 | Capability | Decision and rationale | Revisit point |
 | --- | --- | --- |
 | Customer account deletion (part of F01) | Defer the user-facing deletion workflow. Standard orders do not require it; email release, anonymization, authentication/session invalidation, and historical access need deliberate lifecycle decisions. | After standard orders, or when preparing for use beyond the controlled demo. |
-| Artist appeals (part of F03) | Defer submission, decisions, and appeal-history workflow; basic suspension/reinstatement is sufficient for the controlled demo. | After basic suspension, when formal moderation review becomes a project priority. |
-| Timed suspension (part of F03) | Defer expiry scheduling and extension handling; use indefinite suspension and manual reinstatement initially. | After basic suspension, when automatic expiry is needed. |
+| Artist appeals (part of F03) | Removed by the 31 October amendment. Keep the existing `ArtistAppeal` mapping and table unused. | Only if the product reintroduces appeals. |
+| Timed suspension (part of F03) | Removed by the 31 October amendment; deactivation is indefinite. | Only if the product reintroduces timed suspension. |
+| Platform Fee configuration (part of F07) | Removed by the 31 October amendment; snapshots record a zero fee. Keep the existing `PlatformFeeRate` mapping and table unused. | If the team reintroduces a fee. |
 | Dedicated Admin audit tools | Defer audit browsing dashboards, search/filter interfaces, reporting, exports, and routine manual review tooling. Keep automatic persistent audit recording with each implemented sensitive action. | After standard orders, when an operational audit-review need is identified. |
 
 Deferring account deletion does not defer stable User IDs, retained transaction

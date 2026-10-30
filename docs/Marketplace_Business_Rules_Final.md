@@ -2,6 +2,71 @@
 
 This specification consolidates the original requirements and the decisions made during the requirements review. It intentionally describes **business behavior rather than database implementation**. No SQL/schema assumptions are included beyond rules concerning historical preservation and integrity.
 
+## Amendment — single artist team (31 October 2026)
+
+The website is the storefront of one team of Artists rather than an open marketplace. The team is small; new members may be added. This amendment overrides conflicting rules below. Rules it does not mention are unchanged.
+
+It incorporates the customer-facing policy *Chính sách Nền tảng Commission Tranh – Checkpoint 3* (27 October 2026, "the Policy"), which is not stored in this repository. Decision numbers (D#) refer to the Policy's decision log. Where the Policy leaves a value "[cần bổ sung]", it remains undecided here.
+
+### A. Team and accounts
+
+1. **Public storefront.** Anyone may browse, register and purchase as before (§1 Customer rules unchanged).
+2. **Team members are Artists as currently defined.** The Admin adds a member by granting an Artist Profile to a User (§1.5–10, §2.1–2 unchanged). Members keep Customer capabilities, including buying from and commissioning other members; self-purchase and self-commission remain forbidden.
+3. **Terms consent.** A User must accept the Policy before their account is created (Policy §0; Luật 122/2025 Đ.11.4). The accepted Policy version and acceptance time are recorded.
+4. **Suspension and appeals are replaced by deactivation.** The Admin may deactivate a member. Timed suspension, automatic expiry and the appeal workflow (§2.8–12) are removed (D7). A deactivated member's Listings become unavailable for new purchases, they cannot receive or accept new Commission requests, and their historical records, Customer capabilities and existing commitments are preserved as §2.7, §2.13–16 describe for suspension. Deactivation is an audited Admin action (§29).
+
+### B. Money: no fee, held funds released to the Artist
+
+5. **No Platform Fee (D23).** Artists receive 100% of their earnings:
+   - Digital: Artist Proceeds = digital selling price.
+   - Physical: Artist Proceeds = Artist Markup. Manufacturing Cost, shipping and tax are not Artist income (§7.9–10).
+   - Commission: Artist Proceeds = paid Quote amounts.
+
+   Every transaction still records the applied fee rate (`0`) and fee amount (`0`) in its snapshot, so historical records keep the same shape if a fee is ever reintroduced. A fee change would apply only to future transactions (§14.3). Admin fee-rate management is not required while no fee exists.
+6. **Held funds (D9).** Customer payments are collected and held by the system. Each Artist's proceeds are released to an account in that Artist's own name when the item's release milestone is reached. Manufacturing Cost, shipping and tax are never released to the Artist. Release transfers are tracked with the payout states of §15.3.
+7. **Release milestones** (replacing §15.4–6):
+   - Direct digital Order Item: confirmed successful payment.
+   - Physical Order Item: the return window (rule 9) closes with no open refund/return request, or such a request is rejected.
+   - Commission: see rules 13–14.
+8. **Refunds come only from held funds.** Every ordinary refund window ends before release, so refunds never reach money already released to an Artist. §15.8, §16.10 and §25.8 are superseded by this ordering. A refund request still open when its window would otherwise close delays release until it is decided.
+
+### C. Physical items
+
+9. **48-hour return window.** Physical Order Items remain refundable before confirmed delivery (§16.11). After confirmed delivery, the Customer may submit a refund/return request within 48 hours for a print that does not match what was described, listed or promised (Policy §5.2; D22; Luật 122/2025 Đ.16.2.d). Requests remain manually reviewed and whole-item (§16.2–5); the shipping refund rule (§16.9, §16.13) is unchanged. Supersedes §6.4 and §16.12.
+10. **Included digital files** are granted when the return window closes with no approved return (supersedes §6.3, under which delivery granted them). Customers therefore never hold the digital files while a return remains possible.
+
+### D. Commissions
+
+11. **Addressed to an individual member**, as in §17. The request records the Customer's choice whether the Artist may publicly display the finished work (D3, D20). If not, Commission files are visible only to the participants and the Admin.
+12. **Sketch stage before payment.** After a Quote is accepted, the Artist works on a sketch; the Customer may request unlimited sketch revisions. No payment is due before the sketch is approved. Either party may cancel before the first payment without a refund arising (§20.5).
+13. **Two payments per Quote (D5, D18).** Replacing full payment up front (§12.2–3 for Commissions; §20.1–2):
+    - **First payment:** 50% of the Quote price, due after sketch approval. Work continues only after it is confirmed. It is held.
+    - **Work stages:** lineart, colouring and render are tracked, because refunds depend on them.
+    - **Review:** the Artist submits the final work; the Customer reviews it through a protected preview (format undecided) and cannot download it. Revisions remain unlimited (§22.8).
+    - **Final payment:** the remaining 50% is due after the Customer approves. When it is confirmed, the files are unlocked, the Commission becomes `COMPLETED`, and the full amount is released to the Artist.
+14. **Unpaid final payment.** If the final payment is not confirmed within **7 days** of approval, the Commission closes as unpaid: the held first payment is released to the Artist and the final files stay locked. (Deadline chosen by the implementer at the user's delegation, 31 October 2026.)
+15. **Cancellation refunds by progress (D4, D21).** Replacing §25.3–5, an approved refund after cancellation is a percentage of the held first payment, according to the stage at cancellation:
+
+    | Stage at cancellation | Refund |
+    | --- | --- |
+    | Before the first payment | none arises |
+    | Paid, work not started | 100% |
+    | Lineart | 70% |
+    | Colouring | 30% |
+    | Render started or later | 0% |
+
+    Cancellation still does not refund automatically (§24.11–13), and refunds remain manually reviewed. The final payment is never refunded because it is only made at completion.
+16. **Change Quotes after sketch approval** (+10.000 VND per idea/pose change, D10) remain additional Quotes under §21.
+17. **License contract.** Accepting a Commission Quote, and purchasing a digital product, forms a usage-license contract (Policy §3.7–3.8). The Customer agrees before paying. Both parties can view and download it for at least 3 years.
+
+### E. Not yet decided
+
+- **Accounts and members:** whether a deactivated member can be reactivated; what happens to a leaving member's pending requests/Quotes, unfinished work and held funds; whether the Admin, who may also be a team Artist, remains the dispute reviewer (§26).
+- **Commission payments:** rounding for percentage refunds; how change Quotes are paid (in full or split) and whether they count toward the refund base; whether the refund percentages apply when the Artist cancels.
+- **Physical returns:** the return-shipping procedure; whether 48 hours satisfies Luật 122/2025 Đ.16.2.d and consumer-protection law (Luật 19/2023/QH15, not yet reviewed).
+- **Previews and contracts:** the review preview format; contract fields (term, exclusivity, territory, derivative works, liability, signature method).
+- **Operations:** the timing of release transfers after a milestone; the payment provider and how held funds are held.
+
 ## 1. Users, Customers and Staff
 
 1. A person registers using an email address and password.

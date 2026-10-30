@@ -2,6 +2,8 @@
 
 Source: `Marketplace_Business_Rules_Final.md` (26 September 2026), checked against `EXE101_SQL_Schema.sql` (SQL Server 2019+). Rule references use the numbered sections of the business rules; `Add.` means Additional implementation decisions. The SQL is an implementation baseline, not an additional source of business policy. “Needs Clarification” marks decisions that cannot safely be inferred.
 
+> **31 October 2026:** The [single artist team amendment](Marketplace_Business_Rules_Final.md#amendment--single-artist-team-31-october-2026) removes the Platform Fee, timed suspension and appeals. It adds held funds released to Artists at milestones, a 48-hour post-delivery return window, split 50/50 Commission payments with progress-based refunds, terms consent and license contracts. Where F01, F03, F07, F11–F20 or Q10–Q12 below conflict with it, the amendment prevails.
+
 | ID | Feature | Primary domain |
 | ----- | ----- | ----- |
 | F01 | Customer identity and account lifecycle | Users |
