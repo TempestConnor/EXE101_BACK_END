@@ -33,7 +33,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class FileServiceImpl implements FileService {
     private static String publicAccess = "PUBLIC";
     private static String publicPrefix = "public/";
-    private static String defaultName = "preview";
+    private static String protectedAccess = "PURCHASED";
+    private static String protectedPrefix = "protected/";
+    private static String defaultName = "file";
     private static String digestAlgorithm = "SHA-256";
     private static int maxNameLength = 260;
     private final StoredFileRepository repository;
@@ -43,24 +45,19 @@ public class FileServiceImpl implements FileService {
 
     @Override
     public StoredFileInfo storePublic(NewFile file) {
-        String storageKey = publicPrefix + UUID.randomUUID();
-        Path target = resolve(storageKey);
-        write(target, file.getBytes());
-        StoredFile entity = new StoredFile(storageKey, safeName(file.getOriginalName()), file.getContentType(),
-            file.getBytes().length, sha256(file.getBytes()), publicAccess,
-            OffsetDateTime.now(ZoneOffset.UTC).withNano(0));
-        StoredFile saved;
+        return store(file, publicPrefix, publicAccess);
+    }
 
-        try {
-            saved = repository.saveAndFlush(entity);
-        } catch (RuntimeException exception) {
-            delete(target);
-            throw exception;
-        }
+    @Override
+    public StoredFileInfo storeProtected(NewFile file) {
+        return store(file, protectedPrefix, protectedAccess);
+    }
 
-        log.info("[FILE] - ACTION: storePublic: fileId: {}", saved.getFileId());
-
-        return mapper.toModel(saved);
+    @Override
+    public boolean hasContent(Long fileId) {
+        return repository.findById(fileId)
+            .map(entity -> Files.isRegularFile(resolve(entity.getStorageKey())))
+            .orElse(false);
     }
 
     @Override
@@ -84,6 +81,27 @@ public class FileServiceImpl implements FileService {
             .withContentType(entity.getContentType())
             .withBytes(bytes)
             .build();
+    }
+
+    private StoredFileInfo store(NewFile file, String prefix, String accessClass) {
+        String storageKey = prefix + UUID.randomUUID();
+        Path target = resolve(storageKey);
+        write(target, file.getBytes());
+        StoredFile entity = new StoredFile(storageKey, safeName(file.getOriginalName()), file.getContentType(),
+            file.getBytes().length, sha256(file.getBytes()), accessClass,
+            OffsetDateTime.now(ZoneOffset.UTC).withNano(0));
+        StoredFile saved;
+
+        try {
+            saved = repository.saveAndFlush(entity);
+        } catch (RuntimeException exception) {
+            delete(target);
+            throw exception;
+        }
+
+        log.info("[FILE] - ACTION: store: fileId: {}: accessClass: {}", saved.getFileId(), accessClass);
+
+        return mapper.toModel(saved);
     }
 
     private Path resolve(String storageKey) {

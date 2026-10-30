@@ -31,6 +31,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -70,13 +71,16 @@ class ArtworkServiceTest {
     private FileService fileService;
     @Mock
     private AuditService auditService;
+    @Mock
+    private ListingAvailability listingAvailability;
     private ArtworkServiceImpl service;
 
     @BeforeEach
     void setUp() {
         var tagService = new TagServiceImpl(tagRepository, Mappers.getMapper(TagEntityMapper.class));
         service = new ArtworkServiceImpl(repository, mediaRepository, tagLinkRepository,
-            Mappers.getMapper(ArtworkEntityMapper.class), artistService, tagService, fileService, auditService);
+            Mappers.getMapper(ArtworkEntityMapper.class), artistService, tagService, fileService, auditService,
+            listingAvailability);
     }
 
     @Test
@@ -578,6 +582,39 @@ class ArtworkServiceTest {
             () -> assertThat(result.getStatus()).isEqualTo(ArtworkStatus.PUBLISHED),
             () -> assertThat(result.isPurchasable()).isFalse()
         );
+    }
+
+    @Test
+    void artwork_purchasable_with_one_purchasable_listing_ok() {
+        // given
+        when(repository.findByArtworkIdAndStatus(10L, "PUBLISHED"))
+            .thenReturn(Optional.of(artwork(3L, "PUBLISHED", firstPublished)));
+        when(listingAvailability.findArtworksWithOfferedListings(List.of(10L))).thenReturn(Set.of(10L));
+        when(artistService.get(3L)).thenReturn(artist("ACTIVE"));
+
+        // when
+        var result = service.getPublished(10L);
+
+        // then
+        assertThat(result.isPurchasable()).isTrue();
+    }
+
+    @Test
+    void published_artwork_without_listings_not_purchasable_ok() {
+        // given
+        when(repository.findByArtworkIdAndStatus(10L, "PUBLISHED"))
+            .thenReturn(Optional.of(artwork(3L, "PUBLISHED", firstPublished)));
+        when(listingAvailability.findArtworksWithOfferedListings(List.of(10L))).thenReturn(Set.of());
+
+        // when
+        var result = service.getPublished(10L);
+
+        // then
+        assertAll(
+            () -> assertThat(result.getStatus()).isEqualTo(ArtworkStatus.PUBLISHED),
+            () -> assertThat(result.isPurchasable()).isFalse()
+        );
+        verifyNoInteractions(artistService);
     }
 
     @Test

@@ -10,8 +10,8 @@ Decisions recorded 31 October 2026 for the F05 increment.
   can still view, unlist and archive their own Artwork.
 - **Visibility:** only `PUBLISHED` Artwork is visible publicly, to Customers and anonymous visitors. Owners see all
   of their own Artwork in any status; the Admin sees everything.
-- **Purchase availability** is always `false` in this increment. It becomes true when F06 adds a published,
-  purchasable Listing.
+- **Purchase availability** was always `false` in this increment. Since F06 it is true when the Artwork has a
+  purchasable Listing; see [Listings](listing-catalog.md).
 - **Status changes:**
 
   | From | To | Who |

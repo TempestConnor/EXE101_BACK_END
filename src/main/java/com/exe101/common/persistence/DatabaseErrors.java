@@ -12,16 +12,24 @@ public final class DatabaseErrors {
     }
 
     public static boolean isDuplicateKey(Throwable exception) {
+        return duplicateKeyErrors.contains(errorCode(exception));
+    }
+
+    public static boolean hasErrorCode(Throwable exception, int errorCode) {
+        return errorCode(exception) == errorCode;
+    }
+
+    private static int errorCode(Throwable exception) {
         Throwable cause = exception;
 
         while (cause != null) {
             if (cause instanceof SQLException sql) {
-                return duplicateKeyErrors.contains(sql.getErrorCode());
+                return sql.getErrorCode();
             }
 
             cause = cause.getCause();
         }
 
-        return false;
+        return 0;
     }
 }

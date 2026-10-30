@@ -20,6 +20,10 @@ F05 increment: Artwork drafts, publication, Admin moderation, controlled tags an
 [Artwork catalog, preview media and tags](artwork-catalog.md). Purchase availability waits for Listings (F06);
 protected source and purchased files remain F08.
 
+F06 increment: digital and physical Listings, demo manufacturing costs, protected Listing files and purchase
+availability follow [Digital and physical Listings](listing-catalog.md). The checkout quantity rule belongs to
+F09/F10, cost-change review to F07, and buyer file access to F08/F12.
+
 Requirements change recorded 31 October 2026: the site is the storefront of one
 Artist team, with no Platform Fee, held funds released to each Artist's own
 account, a 48-hour post-delivery return window, split Commission payments, and

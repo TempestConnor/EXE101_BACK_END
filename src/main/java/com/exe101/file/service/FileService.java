@@ -7,5 +7,9 @@ import com.exe101.file.model.StoredFileInfo;
 public interface FileService {
     StoredFileInfo storePublic(NewFile file);
 
+    StoredFileInfo storeProtected(NewFile file);
+
+    boolean hasContent(Long fileId);
+
     FileContent read(Long fileId);
 }

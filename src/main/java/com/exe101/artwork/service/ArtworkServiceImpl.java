@@ -71,6 +71,7 @@ public class ArtworkServiceImpl implements ArtworkService {
     private final TagService tagService;
     private final FileService fileService;
     private final AuditService auditService;
+    private final ListingAvailability listingAvailability;
 
     @Override
     public Artwork create(Long userId, ArtworkDetails details) {
@@ -456,18 +457,44 @@ public class ArtworkServiceImpl implements ArtworkService {
             .filter(link -> activeTags.containsKey(link.getId().getTagId()))
             .collect(Collectors.groupingBy(link -> link.getId().getArtworkId(),
                 Collectors.mapping(link -> activeTags.get(link.getId().getTagId()), Collectors.toList())));
+        Set<Long> purchasable = purchasable(entities);
 
         return entities.stream()
             .map(entity -> {
                 Artwork artwork = mapper.toModel(entity);
                 artwork.setPreviews(previews.getOrDefault(entity.getArtworkId(), List.of()));
                 artwork.setTags(tagsByArtwork.getOrDefault(entity.getArtworkId(), List.of()));
-                // TODO F06: true when the Artwork has at least one published, purchasable Listing.
-                artwork.setPurchasable(false);
+                artwork.setPurchasable(purchasable.contains(entity.getArtworkId()));
 
                 return artwork;
             })
             .toList();
+    }
+
+    // Purchasable: PUBLISHED Artwork of an ACTIVE Artist with at least one offered Listing.
+    private Set<Long> purchasable(List<com.exe101.entity.Artwork> entities) {
+        List<Long> publishedIds = entities.stream()
+            .filter(entity -> ArtworkStatus.PUBLISHED.name().equals(entity.getStatus()))
+            .map(com.exe101.entity.Artwork::getArtworkId)
+            .toList();
+
+        if (publishedIds.isEmpty()) {
+            return Set.of();
+        }
+
+        Set<Long> offered = listingAvailability.findArtworksWithOfferedListings(publishedIds);
+        Map<Long, Boolean> activeArtists = entities.stream()
+            .filter(entity -> offered.contains(entity.getArtworkId()))
+            .map(com.exe101.entity.Artwork::getArtistId)
+            .distinct()
+            .collect(Collectors.toMap(Function.identity(),
+                artistId -> activeArtist.equals(artistService.get(artistId).getStatus())));
+
+        return entities.stream()
+            .filter(entity -> offered.contains(entity.getArtworkId()))
+            .filter(entity -> activeArtists.getOrDefault(entity.getArtistId(), false))
+            .map(com.exe101.entity.Artwork::getArtworkId)
+            .collect(Collectors.toSet());
     }
 
     private ArtworkDetails normalize(ArtworkDetails details) {
