@@ -42,7 +42,8 @@ Decisions recorded 31 October 2026 for the F09 increment.
   `409 CART_CONFLICT`; no update is lost. Edits do not send a version.
 - **Not in the Cart:** updating or removing a Listing that is not in the Cart gets `404 CART_ITEM_NOT_FOUND`.
 - **Out of scope here:** Order creation, snapshots and the final atomic availability and price check (F10);
-  checkout idempotency (Q18, F10); zero-total Orders with physical items (Q01, F10); payment (F11).
+  checkout idempotency (Q18, F10); zero-total Orders with physical items (Q01, F10); payment (F11). F10 decisions:
+  [Order creation](order-creation.md).
 
 ## API
 

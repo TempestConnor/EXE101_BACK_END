@@ -14,6 +14,8 @@ import com.exe101.customer.service.CustomerService;
 import com.exe101.entity.ArtistProfile;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Collection;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -87,6 +89,17 @@ public class ArtistServiceImpl implements ArtistService {
             .orElseThrow(() -> new AppException(AppErrorMessage.ARTIST_PROFILE_REQUIRED));
 
         return mapper.toModel(entity);
+    }
+
+    @Override
+    public List<Artist> lockForPurchase(Collection<Long> artistIds) {
+        if (artistIds == null || artistIds.isEmpty()) {
+            return List.of();
+        }
+
+        return repository.findByArtistIdInOrderByArtistIdAsc(artistIds).stream()
+            .map(mapper::toModel)
+            .toList();
     }
 
     private String blankToNull(String value) {

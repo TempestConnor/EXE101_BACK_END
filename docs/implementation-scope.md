@@ -36,6 +36,12 @@ F09 increment: the Cart with live prices, invalid items kept and marked, and the
 flat shipping fee and a configured per-line tax rate follow [Cart and checkout](cart-checkout.md). Order creation,
 its atomic re-check and the price-difference rejection belong to F10.
 
+F10 increment: Order creation in one locked transaction, immutable item, file, shipping and Customer snapshots,
+a pending payment target, the 30-minute payment window and the expiry job follow
+[Order creation and immutable snapshots](order-creation.md). Zero-total Orders are rejected (Q01) and the Cart
+version is the checkout commit token (Q18). Payment attempts and confirmation belong to F11; the license contract
+waits for its fields and a schema decision.
+
 Requirements change recorded 31 October 2026: the site is the storefront of one
 Artist team, with no Platform Fee, held funds released to each Artist's own
 account, a 48-hour post-delivery return window, split Commission payments, and

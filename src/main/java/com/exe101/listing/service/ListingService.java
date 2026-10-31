@@ -7,6 +7,7 @@ import com.exe101.listing.model.Listing;
 import com.exe101.listing.model.ListingDetails;
 import com.exe101.listing.model.ListingStatusChange;
 import com.exe101.listing.model.ManufacturingProduct;
+import com.exe101.listing.model.PurchaseItem;
 import com.exe101.listing.model.PurchaseOffer;
 import java.util.Collection;
 import java.util.List;
@@ -45,4 +46,6 @@ public interface ListingService {
     Listing confirmCostReview(Long userId, Long listingId, CostReviewConfirmation confirmation);
 
     List<PurchaseOffer> findOffers(Collection<Long> listingIds);
+
+    List<PurchaseItem> lockForPurchase(Collection<Long> listingIds);
 }

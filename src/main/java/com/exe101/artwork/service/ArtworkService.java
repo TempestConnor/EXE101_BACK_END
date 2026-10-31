@@ -6,6 +6,7 @@ import com.exe101.artwork.model.PreviewMove;
 import com.exe101.artwork.model.PreviewUpload;
 import com.exe101.artwork.model.StatusChange;
 import com.exe101.file.model.FileContent;
+import java.util.Collection;
 import java.util.List;
 
 public interface ArtworkService {
@@ -40,4 +41,6 @@ public interface ArtworkService {
     Artwork getPublished(Long artworkId);
 
     FileContent getPublishedPreview(Long artworkId, Long mediaId);
+
+    List<Artwork> lockForPurchase(Collection<Long> artworkIds);
 }

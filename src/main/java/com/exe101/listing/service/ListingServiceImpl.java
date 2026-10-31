@@ -25,6 +25,7 @@ import com.exe101.listing.model.ListingStatus;
 import com.exe101.listing.model.ListingStatusChange;
 import com.exe101.listing.model.ListingType;
 import com.exe101.listing.model.ManufacturingProduct;
+import com.exe101.listing.model.PurchaseItem;
 import com.exe101.listing.model.PurchaseOffer;
 import com.exe101.listing.repository.ListingAssetRepository;
 import com.exe101.listing.repository.ListingRepository;
@@ -39,6 +40,7 @@ import java.util.List;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -404,9 +406,7 @@ public class ListingServiceImpl implements ListingService {
             .map(entity -> {
                 Artwork artwork = artworks.computeIfAbsent(entity.getArtworkId(), artworkService::get);
                 Artist artist = artists.computeIfAbsent(artwork.getArtistId(), artistService::get);
-                boolean purchasable = ListingStatus.PUBLISHED.name().equals(entity.getStatus())
-                    && !entity.isCostReviewRequired() && artwork.getStatus() == ArtworkStatus.PUBLISHED
-                    && activeArtist.equals(artist.getStatus());
+                boolean purchasable = isPurchasable(entity, artwork, artist);
 
                 return PurchaseOffer.builder()
                     .withListingId(entity.getListingId())
@@ -419,6 +419,59 @@ public class ListingServiceImpl implements ListingService {
                     .build();
             })
             .toList();
+    }
+
+    // Locks the Listings, then their Artwork, then their Artists, each in ID order, until the caller commits.
+    @Override
+    public List<PurchaseItem> lockForPurchase(Collection<Long> listingIds) {
+        if (listingIds == null || listingIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<com.exe101.entity.Listing> entities = repository.findByListingIdInOrderByListingIdAsc(listingIds);
+        Set<Long> artworkIds = entities.stream()
+            .map(com.exe101.entity.Listing::getArtworkId)
+            .collect(Collectors.toSet());
+        Map<Long, Artwork> artworks = artworkService.lockForPurchase(artworkIds).stream()
+            .collect(Collectors.toMap(Artwork::getArtworkId, Function.identity()));
+        Set<Long> artistIds = artworks.values().stream().map(Artwork::getArtistId).collect(Collectors.toSet());
+        Map<Long, Artist> artists = artistService.lockForPurchase(artistIds).stream()
+            .collect(Collectors.toMap(Artist::getArtistId, Function.identity()));
+        Map<Long, List<ListingAsset>> assets = assetRepository.findByListingIdInOrderBySortOrderAsc(listingIds)
+            .stream()
+            .collect(Collectors.groupingBy(com.exe101.entity.ListingAsset::getListingId,
+                Collectors.mapping(mapper::toModel, Collectors.toList())));
+
+        return entities.stream()
+            .map(entity -> {
+                Artwork artwork = artworks.get(entity.getArtworkId());
+                Artist artist = artists.get(artwork.getArtistId());
+                boolean purchasable = isPurchasable(entity, artwork, artist);
+
+                return PurchaseItem.builder()
+                    .withListingId(entity.getListingId())
+                    .withListingType(ListingType.valueOf(entity.getListingType()))
+                    .withName(entity.getName())
+                    .withCurrencyCode(entity.getCurrencyCode())
+                    .withPrice(entity.getPrice())
+                    .withManufacturingCost(entity.getManufacturingCost())
+                    .withArtistMarkup(entity.getArtistMarkup())
+                    .withSpecifications(entity.getSpecifications())
+                    .withPurchasable(purchasable)
+                    .withArtworkId(artwork.getArtworkId())
+                    .withArtworkTitle(artwork.getTitle())
+                    .withArtistId(artist.getArtistId())
+                    .withArtistUserId(artist.getUserId())
+                    .withArtistName(artist.getDisplayName())
+                    .withAssets(assets.getOrDefault(entity.getListingId(), List.of()))
+                    .build();
+            })
+            .toList();
+    }
+
+    private boolean isPurchasable(com.exe101.entity.Listing entity, Artwork artwork, Artist artist) {
+        return ListingStatus.PUBLISHED.name().equals(entity.getStatus()) && !entity.isCostReviewRequired()
+            && artwork.getStatus() == ArtworkStatus.PUBLISHED && activeArtist.equals(artist.getStatus());
     }
 
     private Artist requireActiveArtist(Long userId) {

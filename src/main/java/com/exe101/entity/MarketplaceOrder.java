@@ -176,7 +176,8 @@ public class MarketplaceOrder  implements java.io.Serializable {
     }
 
     
-    @Column(name="TotalAmount", precision=21, scale=4, columnDefinition="decimal(21,4)")
+    @org.hibernate.annotations.Generated(event=org.hibernate.generator.EventType.INSERT)
+    @Column(name="TotalAmount", insertable=false, updatable=false, precision=21, scale=4, columnDefinition="decimal(21,4)")
     public BigDecimal getTotalAmount() {
         return this.totalAmount;
     }

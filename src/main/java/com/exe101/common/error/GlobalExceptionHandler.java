@@ -19,6 +19,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         log.warn("[API] - ACTION: reject: code: {}", error);
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(error.getStatus(), error.getDetail());
         problem.setProperty("errorCode", error.name());
+
+        if (exception.getDetails() != null) {
+            problem.setProperty("details", exception.getDetails());
+        }
+
         HttpHeaders headers = new HttpHeaders();
 
         if (error.getStatus().value() == 401) {

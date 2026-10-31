@@ -312,6 +312,18 @@ public class ArtworkServiceImpl implements ArtworkService {
         return fileService.read(requireMedia(artworkId, mediaId).getFileId());
     }
 
+    // Only the Artwork row is needed to check and snapshot a purchase; tags and previews are not loaded.
+    @Override
+    public List<Artwork> lockForPurchase(Collection<Long> artworkIds) {
+        if (artworkIds == null || artworkIds.isEmpty()) {
+            return List.of();
+        }
+
+        return repository.findByArtworkIdInOrderByArtworkIdAsc(artworkIds).stream()
+            .map(mapper::toModel)
+            .toList();
+    }
+
     private Artist requireActiveArtist(Long userId) {
         Artist artist = artistService.getByUserId(userId);
         requireActive(artist);

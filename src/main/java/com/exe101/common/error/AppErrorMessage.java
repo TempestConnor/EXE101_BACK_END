@@ -68,6 +68,10 @@ public enum AppErrorMessage {
     CART_CONFLICT(HttpStatus.CONFLICT, "Cart was changed by another request; reload and retry."),
     LISTING_NOT_PURCHASABLE(HttpStatus.UNPROCESSABLE_CONTENT, "This Listing is not available for purchase."),
     SELF_PURCHASE_NOT_ALLOWED(HttpStatus.UNPROCESSABLE_CONTENT, "Artists cannot buy their own Listings."),
+    CHECKOUT_CHANGED(HttpStatus.CONFLICT, "Prices or Cart contents changed since the preview; review the new amounts."),
+    CHECKOUT_BLOCKED(HttpStatus.UNPROCESSABLE_CONTENT, "The Cart cannot be checked out; see the listed problems."),
+    ORDER_TOTAL_ZERO(HttpStatus.UNPROCESSABLE_CONTENT, "An Order with a total of 0 VND cannot be created."),
+    ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "Order was not found."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "The request could not be completed.");
 
     private final HttpStatus status;

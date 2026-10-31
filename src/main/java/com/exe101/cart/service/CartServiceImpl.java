@@ -186,6 +186,36 @@ public class CartServiceImpl implements CartService {
             .build();
     }
 
+    // The version must still be the one the Customer reviewed. Updating the Cart row under it blocks concurrent
+    // edits and a second submission of the same Cart until the Order transaction ends (Q18, approved 31 October 2026).
+    // Returns the Listing IDs without reading the Listings, which the caller locks next.
+    @Override
+    public List<Long> claimForOrder(Long userId, byte[] version) {
+        com.exe101.entity.Cart cart = cartRepository.findByUserId(userId)
+            .orElseThrow(() -> new AppException(AppErrorMessage.CART_CONFLICT));
+        int updated = cartRepository.touch(cart.getCartId(), version, now());
+
+        if (updated == 0) {
+            throw new AppException(AppErrorMessage.CART_CONFLICT);
+        }
+
+        return itemRepository.findByIdCartIdOrderByIdListingIdAsc(cart.getCartId()).stream()
+            .map(item -> item.getId().getListingId())
+            .toList();
+    }
+
+    @Override
+    public void clear(Long userId) {
+        Optional<com.exe101.entity.Cart> cart = cartRepository.findByUserId(userId);
+
+        if (cart.isEmpty()) {
+            return;
+        }
+
+        itemRepository.deleteByCartId(cart.get().getCartId());
+        log.info("[CART] - ACTION: clear: userId: {}", userId);
+    }
+
     private PurchaseOffer requireOffer(Long listingId) {
         return listingService.findOffers(List.of(listingId)).stream()
             .findFirst()

@@ -281,7 +281,8 @@ public class OrderItem  implements java.io.Serializable {
     }
 
     
-    @Column(name="LineSubtotal", precision=19, scale=4, columnDefinition="decimal(19,4)")
+    @org.hibernate.annotations.Generated(event=org.hibernate.generator.EventType.INSERT)
+    @Column(name="LineSubtotal", insertable=false, updatable=false, precision=19, scale=4, columnDefinition="decimal(19,4)")
     public BigDecimal getLineSubtotal() {
         return this.lineSubtotal;
     }

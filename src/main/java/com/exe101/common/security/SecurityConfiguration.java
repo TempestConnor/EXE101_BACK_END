@@ -70,6 +70,7 @@ public class SecurityConfiguration {
                 .requestMatchers("/admin/listings", "/admin/listings/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/purchases/assets/*/content").hasRole("CUSTOMER")
                 .requestMatchers("/cart", "/cart/**").hasRole("CUSTOMER")
+                .requestMatchers("/orders", "/orders/**").hasRole("CUSTOMER")
                 .requestMatchers(HttpMethod.GET, "/catalog/artworks", "/catalog/artworks/**").permitAll()
                 .anyRequest().denyAll())
             .exceptionHandling(errors -> errors

@@ -13,7 +13,7 @@ public class NormalizeEntities {
         try (Connection connection = DriverManager.getConnection(System.getenv("DB_URL"), properties)) {
             String query = """
                 SELECT t.name table_name, c.name column_name, ty.name type_name,
-                       c.max_length, c.precision, c.scale
+                       c.max_length, c.precision, c.scale, c.is_computed
                 FROM sys.tables t JOIN sys.schemas s ON t.schema_id = s.schema_id
                 JOIN sys.columns c ON c.object_id = t.object_id
                 JOIN sys.types ty ON ty.user_type_id = c.user_type_id
@@ -57,6 +57,12 @@ public class NormalizeEntities {
                         }
                         if (type.equals("timestamp") || type.equals("rowversion")) {
                             extra += "@jakarta.persistence.Version\n    @org.hibernate.annotations.Generated(event={org.hibernate.generator.EventType.INSERT, org.hibernate.generator.EventType.UPDATE})\n    ";
+                            options += ", insertable=false, updatable=false";
+                        }
+                        // Computed columns are written by SQL Server and read back after insert.
+                        if (rows.getBoolean("is_computed")) {
+                            extra += "@org.hibernate.annotations.Generated(event=org.hibernate.generator.EventType.INSERT)
+    ";
                             options += ", insertable=false, updatable=false";
                         }
                         String replacement = extra + "@Column(name=\"" + column + "\"" + options + ", columnDefinition=\"" + definition + "\")";
