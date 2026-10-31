@@ -54,6 +54,9 @@ class ListingControllerTest {
     private static String updateBody = """
         {"name":"Sunset download","price":60000,"version":"AAAAAAAAAAE="}
         """;
+    private static String costReviewBody = """
+        {"artistMarkup":30000,"version":"AAAAAAAAAAE="}
+        """;
     @Autowired
     private MockMvc mvc;
     @Autowired
@@ -123,6 +126,72 @@ class ListingControllerTest {
         // when / then
         mvc.perform(put("/listings/20").header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON).content(updateBody))
+            .andExpect(status().isConflict())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.errorCode").value("LISTING_VERSION_CONFLICT"));
+    }
+
+    @Test
+    void confirm_review_returns_updated_listing_ok() throws Exception {
+        // given
+        var token = customerToken();
+        var confirmed = Listing.builder()
+            .withListingId(20L)
+            .withArtworkId(10L)
+            .withListingType(ListingType.PHYSICAL)
+            .withName("Sunset A4 print")
+            .withStatus(ListingStatus.PUBLISHED)
+            .withCurrencyCode("VND")
+            .withPrice(new BigDecimal("110000.0000"))
+            .withManufacturingCost(new BigDecimal("80000.0000"))
+            .withArtistMarkup(new BigDecimal("30000.0000"))
+            .withCostReviewRequired(false)
+            .withPurchasable(true)
+            .withCreatedAt(OffsetDateTime.of(2026, 10, 31, 0, 0, 0, 0, ZoneOffset.UTC))
+            .withVersion(new byte[] {0, 0, 0, 0, 0, 0, 0, 2})
+            .withAssets(List.of())
+            .build();
+        when(listings.confirmCostReview(eq(42L), eq(20L), any())).thenReturn(confirmed);
+
+        // when / then
+        mvc.perform(put("/listings/20/cost-review").header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON).content(costReviewBody))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.listingId").value(20))
+            .andExpect(jsonPath("$.price").value(110000))
+            .andExpect(jsonPath("$.manufacturingCost").value(80000))
+            .andExpect(jsonPath("$.artistMarkup").value(30000))
+            .andExpect(jsonPath("$.costReviewRequired").value(false))
+            .andExpect(jsonPath("$.purchasable").value(true))
+            .andExpect(jsonPath("$.version").value("AAAAAAAAAAI="));
+    }
+
+    @Test
+    void confirm_review_invalid_body_ko() throws Exception {
+        // given
+        var token = customerToken();
+
+        // when / then
+        mvc.perform(put("/listings/20/cost-review").header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON).content("""
+                    {"artistMarkup":-1.5}
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
+        verifyNoInteractions(listings);
+    }
+
+    @Test
+    void confirm_review_version_conflict_ko() throws Exception {
+        // given
+        var token = customerToken();
+        when(listings.confirmCostReview(eq(42L), eq(20L), any()))
+            .thenThrow(new AppException(AppErrorMessage.LISTING_VERSION_CONFLICT));
+
+        // when / then
+        mvc.perform(put("/listings/20/cost-review").header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON).content(costReviewBody))
             .andExpect(status().isConflict())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
             .andExpect(jsonPath("$.errorCode").value("LISTING_VERSION_CONFLICT"));

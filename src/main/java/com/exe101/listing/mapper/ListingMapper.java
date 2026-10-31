@@ -2,12 +2,14 @@ package com.exe101.listing.mapper;
 
 import com.exe101.listing.dto.CatalogListingDTO;
 import com.exe101.listing.dto.ChangeListingStatusDTO;
+import com.exe101.listing.dto.ConfirmCostReviewDTO;
 import com.exe101.listing.dto.CreateListingDTO;
 import com.exe101.listing.dto.ListingAssetDTO;
 import com.exe101.listing.dto.ListingDTO;
 import com.exe101.listing.dto.ManufacturingProductDTO;
 import com.exe101.listing.dto.UpdateListingDTO;
 import com.exe101.listing.model.AssetUpload;
+import com.exe101.listing.model.CostReviewConfirmation;
 import com.exe101.listing.model.Listing;
 import com.exe101.listing.model.ListingAsset;
 import com.exe101.listing.model.ListingDetails;
@@ -48,6 +50,10 @@ public interface ListingMapper {
     @Mapping(source = "status", target = "withStatus")
     @Mapping(source = "reason", target = "withReason")
     ListingStatusChange toModel(ChangeListingStatusDTO dto);
+
+    @Mapping(source = "artistMarkup", target = "withArtistMarkup")
+    @Mapping(source = "version", target = "withVersion", qualifiedByName = "decodeVersion")
+    CostReviewConfirmation toModel(ConfirmCostReviewDTO dto);
 
     @Mapping(source = "version", target = "version", qualifiedByName = "encodeVersion")
     ListingDTO toDto(Listing listing);

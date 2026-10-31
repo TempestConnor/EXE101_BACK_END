@@ -23,6 +23,7 @@ public interface ListingEntityMapper {
     @Mapping(source = "publishedAt", target = "withPublishedAt")
     @Mapping(source = "createdAt", target = "withCreatedAt")
     @Mapping(source = "rowVer", target = "withVersion")
+    @Mapping(target = "withCurrentManufacturingCost", ignore = true)
     @Mapping(target = "withPurchasable", ignore = true)
     @Mapping(target = "withAssets", ignore = true)
     Listing toModel(com.exe101.entity.Listing entity);

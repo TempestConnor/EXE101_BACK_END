@@ -58,6 +58,9 @@ public enum AppErrorMessage {
     LISTING_ASSET_NOT_FOUND(HttpStatus.NOT_FOUND, "Listing file was not found."),
     LISTING_ASSET_TYPE_NOT_SUPPORTED(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "This file type is not supported."),
     LISTING_ASSET_TOO_LARGE(HttpStatus.CONTENT_TOO_LARGE, "File exceeds the maximum size."),
+    LISTING_COST_REVIEW_REQUIRED(HttpStatus.CONFLICT,
+        "The manufacturing cost changed; the Artist must review it before this Listing can change or be sold."),
+    LISTING_COST_REVIEW_NOT_REQUIRED(HttpStatus.CONFLICT, "This Listing has no manufacturing cost change to review."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "The request could not be completed.");
 
     private final HttpStatus status;

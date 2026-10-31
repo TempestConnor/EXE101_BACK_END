@@ -45,7 +45,8 @@ Decisions recorded 31 October 2026 for the F06 increment.
   jpeg, webp, tif, tiff, psd, pdf, zip, glb, gltf, obj, fbx, stl, blend; contents are not inspected. At most
   200 MB each and 10 per Listing. Removing a file deletes only the `ListingAsset` link. Only the owner and the
   Admin can download Listing files until F08 adds entitlement checks.
-- **Out of scope here:** the quantity rule (digital = 1) at checkout (F09/F10); cost-change review (F07);
+- **Out of scope here:** the quantity rule (digital = 1) at checkout (F09/F10); cost-change review (F07, see
+  [Manufacturing cost review](manufacturing-cost-review.md));
   buyer file access (F08/F12); Order snapshots (F10).
 
 ## API

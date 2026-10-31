@@ -2,6 +2,7 @@ package com.exe101.listing.service;
 
 import com.exe101.file.model.FileContent;
 import com.exe101.listing.model.AssetUpload;
+import com.exe101.listing.model.CostReviewConfirmation;
 import com.exe101.listing.model.Listing;
 import com.exe101.listing.model.ListingDetails;
 import com.exe101.listing.model.ListingStatusChange;
@@ -36,4 +37,8 @@ public interface ListingService {
     FileContent getAsset(Long listingId, Long assetId);
 
     List<Listing> listPublished(Long artworkId);
+
+    int flagCostChanges();
+
+    Listing confirmCostReview(Long userId, Long listingId, CostReviewConfirmation confirmation);
 }

@@ -18,6 +18,7 @@ import com.exe101.file.service.FileService;
 import com.exe101.listing.config.ManufacturingProperties;
 import com.exe101.listing.mapper.ListingEntityMapper;
 import com.exe101.listing.model.AssetUpload;
+import com.exe101.listing.model.CostReviewConfirmation;
 import com.exe101.listing.model.ListingDetails;
 import com.exe101.listing.model.ListingStatus;
 import com.exe101.listing.model.ListingStatusChange;
@@ -41,7 +42,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -829,6 +832,232 @@ class ListingServiceTest {
         );
     }
 
+    @Test
+    void cost_change_flags_published_physical_listing_ok() {
+        // given
+        var statuses = List.of("DRAFT", "PUBLISHED", "UNLISTED");
+        when(repository.flagCostChanges(a4Specifications, new BigDecimal("80000.0000"), statuses)).thenReturn(2);
+        when(repository.flagCostChanges(a0Specifications, new BigDecimal("500000.0000"), statuses)).thenReturn(1);
+
+        // when
+        var result = service.flagCostChanges();
+
+        // then
+        assertAll(
+            () -> assertThat(result).isEqualTo(3),
+            () -> verify(repository).flagCostChanges(a4Specifications, new BigDecimal("80000.0000"), statuses),
+            () -> verify(repository).flagCostChanges(a0Specifications, new BigDecimal("500000.0000"), statuses),
+            () -> verify(repository, never()).saveAndFlush(any())
+        );
+    }
+
+    @Test
+    void invalid_cost_rejected_before_any_flag_ko() {
+        // given
+        var negative = serviceWith(new ManufacturingProperties.Product("PRINT_A4", "Fine-art print A4",
+            a4Specifications, new BigDecimal("-1")));
+        var fractional = serviceWith(new ManufacturingProperties.Product("PRINT_A4", "Fine-art print A4",
+            a4Specifications, new BigDecimal("80000.5")));
+
+        // when / then
+        assertAll(
+            () -> assertThatThrownBy(negative::flagCostChanges).isInstanceOf(IllegalStateException.class),
+            () -> assertThatThrownBy(fractional::flagCostChanges).isInstanceOf(IllegalStateException.class),
+            () -> verify(repository, never()).flagCostChanges(anyString(), any(), anyCollection())
+        );
+    }
+
+    @Test
+    void confirm_review_with_same_markup_ok() {
+        // given
+        ownedListing(flagged("PUBLISHED"), ArtworkStatus.PUBLISHED, "ACTIVE");
+        savesListings();
+
+        // when
+        var result = service.confirmCostReview(42L, 20L, confirmation(new BigDecimal("30000"), version));
+        var saved = ArgumentCaptor.forClass(Listing.class);
+        verify(repository).saveAndFlush(saved.capture());
+
+        // then
+        assertAll(
+            () -> assertThat(saved.getValue().getManufacturingCost()).isEqualByComparingTo("80000"),
+            () -> assertThat(saved.getValue().getArtistMarkup()).isEqualByComparingTo("30000"),
+            () -> assertThat(saved.getValue().getPrice()).isEqualByComparingTo("110000"),
+            () -> assertThat(saved.getValue().isCostReviewRequired()).isFalse(),
+            () -> assertThat(saved.getValue().getSpecifications()).isEqualTo(a4Specifications),
+            () -> assertThat(result.getCurrentManufacturingCost()).isNull()
+        );
+    }
+
+    @Test
+    void confirm_review_with_new_markup_ok() {
+        // given
+        ownedListing(flagged("PUBLISHED"), ArtworkStatus.PUBLISHED, "ACTIVE");
+        savesListings();
+
+        // when
+        var result = service.confirmCostReview(42L, 20L, confirmation(new BigDecimal("10000"), version));
+
+        // then
+        assertAll(
+            () -> assertThat(result.getManufacturingCost()).isEqualByComparingTo("80000"),
+            () -> assertThat(result.getArtistMarkup()).isEqualByComparingTo("10000"),
+            () -> assertThat(result.getPrice()).isEqualByComparingTo("90000"),
+            () -> assertThat(result.isCostReviewRequired()).isFalse()
+        );
+    }
+
+    @Test
+    void confirm_review_with_zero_markup_ok() {
+        // given
+        ownedListing(flagged("PUBLISHED"), ArtworkStatus.PUBLISHED, "ACTIVE");
+        savesListings();
+
+        // when
+        var result = service.confirmCostReview(42L, 20L, confirmation(BigDecimal.ZERO, version));
+
+        // then
+        assertAll(
+            () -> assertThat(result.getArtistMarkup()).isEqualByComparingTo("0"),
+            () -> assertThat(result.getPrice()).isEqualByComparingTo("80000"),
+            () -> assertThat(result.isCostReviewRequired()).isFalse()
+        );
+    }
+
+    @Test
+    void confirm_review_listing_not_found_ko() {
+        // given
+        when(artistService.getByUserId(42L)).thenReturn(artist("ACTIVE"));
+        when(repository.findById(20L)).thenReturn(Optional.empty());
+
+        // when / then
+        assertThatThrownBy(() -> service.confirmCostReview(42L, 20L, confirmation(new BigDecimal("30000"), version)))
+            .isInstanceOf(AppException.class).hasMessage(AppErrorMessage.LISTING_NOT_FOUND.getDetail());
+        verify(repository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void confirm_review_not_owner_ko() {
+        // given
+        when(artistService.getByUserId(42L)).thenReturn(artist("ACTIVE"));
+        when(repository.findById(20L)).thenReturn(Optional.of(flagged("PUBLISHED")));
+        when(artworkService.get(10L)).thenReturn(artwork(99L, ArtworkStatus.PUBLISHED));
+
+        // when / then
+        assertThatThrownBy(() -> service.confirmCostReview(42L, 20L, confirmation(new BigDecimal("30000"), version)))
+            .isInstanceOf(AppException.class).hasMessage(AppErrorMessage.ACCESS_DENIED.getDetail());
+        verify(repository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void confirm_review_inactive_artist_ko() {
+        // given
+        when(artistService.getByUserId(42L)).thenReturn(artist("SUSPENDED"));
+
+        // when / then
+        assertThatThrownBy(() -> service.confirmCostReview(42L, 20L, confirmation(new BigDecimal("30000"), version)))
+            .isInstanceOf(AppException.class).hasMessage(AppErrorMessage.ARTIST_NOT_ACTIVE.getDetail());
+        verify(repository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void confirm_review_listing_not_flagged_ko() {
+        // given
+        ownedListing(physical(20L, "PUBLISHED", firstPublished), ArtworkStatus.PUBLISHED, "ACTIVE");
+
+        // when / then
+        assertThatThrownBy(() -> service.confirmCostReview(42L, 20L, confirmation(new BigDecimal("30000"), version)))
+            .isInstanceOf(AppException.class)
+            .hasMessage(AppErrorMessage.LISTING_COST_REVIEW_NOT_REQUIRED.getDetail());
+        verify(repository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void confirm_review_stale_version_ko() {
+        // given
+        ownedListing(flagged("PUBLISHED"), ArtworkStatus.PUBLISHED, "ACTIVE");
+
+        // when / then
+        assertThatThrownBy(() -> service.confirmCostReview(42L, 20L,
+            confirmation(new BigDecimal("30000"), newerVersion)))
+            .isInstanceOf(AppException.class).hasMessage(AppErrorMessage.LISTING_VERSION_CONFLICT.getDetail());
+        verify(repository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void confirm_review_invalid_markup_ko() {
+        // given
+        ownedListing(flagged("PUBLISHED"), ArtworkStatus.PUBLISHED, "ACTIVE");
+
+        // when / then
+        assertAll(
+            () -> assertThatThrownBy(() -> service.confirmCostReview(42L, 20L,
+                confirmation(new BigDecimal("-1"), version)))
+                .isInstanceOf(AppException.class).hasMessage(AppErrorMessage.LISTING_INVALID.getDetail()),
+            () -> assertThatThrownBy(() -> service.confirmCostReview(42L, 20L,
+                confirmation(new BigDecimal("30000.5"), version)))
+                .isInstanceOf(AppException.class).hasMessage(AppErrorMessage.LISTING_INVALID.getDetail()),
+            () -> verify(repository, never()).saveAndFlush(any())
+        );
+    }
+
+    @Test
+    void edit_markup_while_review_required_ko() {
+        // given
+        ownedListing(flagged("PUBLISHED"), ArtworkStatus.PUBLISHED, "ACTIVE");
+
+        // when / then
+        assertThatThrownBy(() -> service.update(42L, 20L, physicalDetails(null, new BigDecimal("50000"), version)))
+            .isInstanceOf(AppException.class).hasMessage(AppErrorMessage.LISTING_COST_REVIEW_REQUIRED.getDetail());
+        verify(repository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void publish_while_review_required_ko() {
+        // given
+        ownedListing(flagged("DRAFT"), ArtworkStatus.PUBLISHED, "ACTIVE");
+
+        // when / then
+        assertThatThrownBy(() -> service.changeStatus(42L, 20L,
+            new ListingStatusChange(ListingStatus.PUBLISHED, null)))
+            .isInstanceOf(AppException.class).hasMessage(AppErrorMessage.LISTING_COST_REVIEW_REQUIRED.getDetail());
+        verify(repository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void flagged_listing_not_purchasable_until_confirmed_ok() {
+        // given
+        ownedListing(flagged("PUBLISHED"), ArtworkStatus.PUBLISHED, "ACTIVE");
+        savesListings();
+
+        // when
+        var before = service.getOwn(42L, 20L);
+        var after = service.confirmCostReview(42L, 20L, confirmation(new BigDecimal("30000"), version));
+
+        // then
+        assertAll(
+            () -> assertThat(before.isPurchasable()).isFalse(),
+            () -> assertThat(after.isPurchasable()).isTrue()
+        );
+    }
+
+    @Test
+    void owner_sees_current_cost_on_flagged_listing_ok() {
+        // given
+        ownedListing(flagged("PUBLISHED"), ArtworkStatus.PUBLISHED, "ACTIVE");
+
+        // when
+        var result = service.getOwn(42L, 20L);
+
+        // then
+        assertAll(
+            () -> assertThat(result.isCostReviewRequired()).isTrue(),
+            () -> assertThat(result.getManufacturingCost()).isEqualByComparingTo("60000"),
+            () -> assertThat(result.getPrice()).isEqualByComparingTo("90000"),
+            () -> assertThat(result.getCurrentManufacturingCost()).isEqualByComparingTo("80000")
+        );
+    }
+
     private void ownedArtwork(ArtworkStatus status) {
         when(artistService.getByUserId(42L)).thenReturn(artist("ACTIVE"));
         when(artworkService.get(10L)).thenReturn(artwork(3L, status));
@@ -893,5 +1122,25 @@ class ListingServiceTest {
     private ListingDetails physicalDetails(String productCode, BigDecimal markup, byte[] rowVersion) {
         return new ListingDetails(10L, ListingType.PHYSICAL, "Sunset A4 print", null, null, productCode, markup,
             rowVersion);
+    }
+
+    // Priced at an older A4 cost of 60000; the current A4 cost is 80000.
+    private Listing flagged(String status) {
+        var publishedAt = "DRAFT".equals(status) ? null : firstPublished;
+        var listing = new Listing(10L, "PHYSICAL", "Sunset A4 print", null, status, "VND",
+            new BigDecimal("90000.0000"), new BigDecimal("60000.0000"), new BigDecimal("30000.0000"),
+            a4Specifications, true, firstPublished, publishedAt, version);
+        listing.setListingId(20L);
+
+        return listing;
+    }
+
+    private CostReviewConfirmation confirmation(BigDecimal markup, byte[] rowVersion) {
+        return new CostReviewConfirmation(markup, rowVersion);
+    }
+
+    private ListingServiceImpl serviceWith(ManufacturingProperties.Product product) {
+        return new ListingServiceImpl(repository, assetRepository, Mappers.getMapper(ListingEntityMapper.class),
+            artworkService, artistService, fileService, auditService, new ManufacturingProperties(List.of(product)));
     }
 }

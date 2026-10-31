@@ -112,7 +112,7 @@ Source: `Marketplace_Business_Rules_Final.md` (26 September 2026), checked again
 * **Validation:** VND; money `decimal(19,4)`, fee rate `decimal(9,6)` in \[0,1\], nonnegative cost/markup; applied fee must not exceed its base. Rounding and rate effective-time boundary: **Moot** — no Platform Fee under the amendment; money is whole đồng (see Q10).  
 * **Edge cases:** Cost update racing Order creation; repeated/older provider cost update; multiple fee-rate changes; zero markup; historical Orders must retain original values.  
 * **Acceptance criteria:** Given cost 100 and markup 30, when listed, then retail is 130 and the physical fee uses 30 as its per-unit base. Given later cost 120, when update arrives, then checkout is blocked until review and no existing Order values change.  
-* **Implementation:** `Listing.CostReviewRequired`, `PlatformFeeRate`, `OrderItem`, `CommissionQuote`; cost-update/admin rate operations; consistent transactional snapshots.
+* **Implementation:** `Listing.CostReviewRequired`, `PlatformFeeRate`, `OrderItem`, `CommissionQuote`; cost-update/admin rate operations; consistent transactional snapshots. **Resolved:** cost source, review and fee scope in [Manufacturing cost review](manufacturing-cost-review.md).
 
 ### **F08 — Protected file storage and authorization**
 

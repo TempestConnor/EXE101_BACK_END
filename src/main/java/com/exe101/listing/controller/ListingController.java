@@ -1,6 +1,7 @@
 package com.exe101.listing.controller;
 
 import com.exe101.listing.dto.ChangeListingStatusDTO;
+import com.exe101.listing.dto.ConfirmCostReviewDTO;
 import com.exe101.listing.dto.CreateListingDTO;
 import com.exe101.listing.dto.ListingDTO;
 import com.exe101.listing.dto.ManufacturingProductDTO;
@@ -86,6 +87,18 @@ public class ListingController {
     ) {
         var change = mapper.toModel(dto);
         var updated = listingService.changeStatus(userId, listingId, change);
+        var response = mapper.toDto(updated);
+
+        return response;
+    }
+
+    @PutMapping("/{listingId}/cost-review")
+    public ListingDTO confirmCostReview(
+        @PathVariable Long listingId, @RequestBody @Valid ConfirmCostReviewDTO dto,
+        @AuthenticationPrincipal Long userId
+    ) {
+        var confirmation = mapper.toModel(dto);
+        var updated = listingService.confirmCostReview(userId, listingId, confirmation);
         var response = mapper.toDto(updated);
 
         return response;

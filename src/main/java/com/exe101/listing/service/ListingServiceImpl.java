@@ -17,6 +17,7 @@ import com.exe101.file.service.FileService;
 import com.exe101.listing.config.ManufacturingProperties;
 import com.exe101.listing.mapper.ListingEntityMapper;
 import com.exe101.listing.model.AssetUpload;
+import com.exe101.listing.model.CostReviewConfirmation;
 import com.exe101.listing.model.Listing;
 import com.exe101.listing.model.ListingAsset;
 import com.exe101.listing.model.ListingDetails;
@@ -32,6 +33,7 @@ import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -52,6 +54,9 @@ public class ListingServiceImpl implements ListingService {
     private static String moderatedAction = "LISTING_MODERATED";
     private static String statusAction = "LISTING_STATUS_CHANGED";
     private static String listingTarget = "Listing";
+    // Cost changes flag every physical Listing that can still be sold or published.
+    private static List<String> reviewableStatuses = List.of(ListingStatus.DRAFT.name(),
+        ListingStatus.PUBLISHED.name(), ListingStatus.UNLISTED.name());
     private static Set<ListingStatus> finalStatuses = EnumSet.of(ListingStatus.MODERATED, ListingStatus.ARCHIVED);
     private static Set<ArtworkStatus> finalArtworkStatuses = EnumSet.of(ArtworkStatus.MODERATED,
         ArtworkStatus.ARCHIVED);
@@ -126,12 +131,13 @@ public class ListingServiceImpl implements ListingService {
         Artwork artwork = requireOwnedArtwork(artist, entity.getArtworkId());
         requireEditable(entity);
         requireArtworkEditable(artwork);
-        boolean sameVersion = details.getVersion() != null && Arrays.equals(details.getVersion(), entity.getRowVer());
 
-        if (!sameVersion) {
-            throw new AppException(AppErrorMessage.LISTING_VERSION_CONFLICT);
+        // A normal edit would reprice from the old cost; only the review may change a flagged Listing.
+        if (entity.isCostReviewRequired()) {
+            throw new AppException(AppErrorMessage.LISTING_COST_REVIEW_REQUIRED);
         }
 
+        requireVersion(entity, details.getVersion());
         entity.setName(requireName(details.getName()));
         entity.setDescription(blankToNull(details.getDescription()));
         applyPricing(entity, details);
@@ -321,6 +327,66 @@ public class ListingServiceImpl implements ListingService {
         return assemble(listings, artwork, artist);
     }
 
+    @Override
+    public int flagCostChanges() {
+        List<ManufacturingProduct> products = listProducts();
+        requireValidProducts(products);
+        int flagged = 0;
+
+        for (ManufacturingProduct product : products) {
+            int count = repository.flagCostChanges(product.getSpecifications(), money(product.getCost()),
+                reviewableStatuses);
+
+            if (count > 0) {
+                log.info("[LISTING] - ACTION: flagCostChanges: productCode: {}: cost: {}: flagged: {}",
+                    product.getCode(), product.getCost(), count);
+            }
+
+            flagged += count;
+        }
+
+        return flagged;
+    }
+
+    @Override
+    public Listing confirmCostReview(Long userId, Long listingId, CostReviewConfirmation confirmation) {
+        Artist artist = requireActiveArtist(userId);
+        com.exe101.entity.Listing entity = requireListing(listingId);
+        Artwork artwork = requireOwnedArtwork(artist, entity.getArtworkId());
+        requireEditable(entity);
+        requireArtworkEditable(artwork);
+
+        if (!entity.isCostReviewRequired()) {
+            throw new AppException(AppErrorMessage.LISTING_COST_REVIEW_NOT_REQUIRED);
+        }
+
+        requireVersion(entity, confirmation.getVersion());
+        boolean invalid = confirmation.getArtistMarkup() == null || confirmation.getArtistMarkup().signum() < 0;
+
+        if (invalid) {
+            throw new AppException(AppErrorMessage.LISTING_INVALID);
+        }
+
+        ManufacturingProduct product = findProductBySpecifications(entity.getSpecifications());
+
+        if (product == null) {
+            log.error("[LISTING] - ACTION: confirmCostReview: no current product: listingId: {}", listingId);
+            throw new AppException(AppErrorMessage.LISTING_PRODUCT_UNKNOWN);
+        }
+
+        BigDecimal markup = money(confirmation.getArtistMarkup());
+        BigDecimal manufacturingCost = money(product.getCost());
+        entity.setManufacturingCost(manufacturingCost);
+        entity.setArtistMarkup(markup);
+        entity.setPrice(money(manufacturingCost.add(markup)));
+        entity.setCostReviewRequired(false);
+        com.exe101.entity.Listing saved = save(entity);
+        log.info("[LISTING] - ACTION: confirmCostReview: listingId: {}: cost: {}: markup: {}", listingId,
+            manufacturingCost, markup);
+
+        return assemble(saved, artwork, artist);
+    }
+
     private Artist requireActiveArtist(Long userId) {
         Artist artist = artistService.getByUserId(userId);
         requireActive(artist);
@@ -373,6 +439,38 @@ public class ListingServiceImpl implements ListingService {
     private com.exe101.entity.ListingAsset requireAsset(Long listingId, Long assetId) {
         return assetRepository.findByListingAssetIdAndListingId(assetId, listingId)
             .orElseThrow(() -> new AppException(AppErrorMessage.LISTING_ASSET_NOT_FOUND));
+    }
+
+    private void requireVersion(com.exe101.entity.Listing entity, byte[] version) {
+        boolean sameVersion = version != null && Arrays.equals(version, entity.getRowVer());
+
+        if (!sameVersion) {
+            throw new AppException(AppErrorMessage.LISTING_VERSION_CONFLICT);
+        }
+    }
+
+    // Listings record only the copied specifications, so they identify the product (approved option a).
+    private void requireValidProducts(List<ManufacturingProduct> products) {
+        Set<String> specifications = new HashSet<>();
+
+        for (ManufacturingProduct product : products) {
+            boolean validCost = product.getCost() != null && product.getCost().signum() >= 0
+                && product.getCost().stripTrailingZeros().scale() <= 0
+                && product.getCost().compareTo(moneyLimit) < 0;
+            boolean validSpecifications = blankToNull(product.getSpecifications()) != null
+                && specifications.add(product.getSpecifications());
+
+            if (!validCost || !validSpecifications || blankToNull(product.getCode()) == null) {
+                throw new IllegalStateException("Invalid manufacturing product configuration: " + product.getCode());
+            }
+        }
+    }
+
+    private ManufacturingProduct findProductBySpecifications(String specifications) {
+        return listProducts().stream()
+            .filter(product -> specifications != null && specifications.equals(product.getSpecifications()))
+            .findFirst()
+            .orElse(null);
     }
 
     private ManufacturingProduct requireProduct(String code) {
@@ -465,6 +563,10 @@ public class ListingServiceImpl implements ListingService {
     }
 
     private void requirePublishable(com.exe101.entity.Listing entity, Artwork artwork) {
+        if (entity.isCostReviewRequired()) {
+            throw new AppException(AppErrorMessage.LISTING_COST_REVIEW_REQUIRED);
+        }
+
         if (artwork.getStatus() != ArtworkStatus.PUBLISHED) {
             throw new AppException(AppErrorMessage.LISTING_ARTWORK_NOT_PUBLISHED);
         }
@@ -536,6 +638,11 @@ public class ListingServiceImpl implements ListingService {
                     && !entity.isCostReviewRequired();
                 listing.setAssets(assets.getOrDefault(entity.getListingId(), List.of()));
                 listing.setPurchasable(sellable && offered);
+
+                if (entity.isCostReviewRequired()) {
+                    ManufacturingProduct product = findProductBySpecifications(entity.getSpecifications());
+                    listing.setCurrentManufacturingCost(product == null ? null : money(product.getCost()));
+                }
 
                 return listing;
             })

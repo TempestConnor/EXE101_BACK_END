@@ -27,6 +27,7 @@ public class Listing {
     private BigDecimal artistMarkup;
     private String specifications;
     private boolean costReviewRequired;
+    private BigDecimal currentManufacturingCost;
     private OffsetDateTime publishedAt;
     private OffsetDateTime createdAt;
     private byte[] version;

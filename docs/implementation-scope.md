@@ -24,6 +24,10 @@ F06 increment: digital and physical Listings, demo manufacturing costs, protecte
 availability follow [Digital and physical Listings](listing-catalog.md). The checkout quantity rule belongs to
 F09/F10, cost-change review to F07, and buyer file access to F08/F12.
 
+F07 increment: manufacturing-cost changes flag affected physical Listings for Artist review, compared once per
+start against the configured costs, follow [Manufacturing cost review](manufacturing-cost-review.md). No Platform
+Fee configuration; the zero-fee Order Item snapshot is written by F10.
+
 Requirements change recorded 31 October 2026: the site is the storefront of one
 Artist team, with no Platform Fee, held funds released to each Artist's own
 account, a 48-hour post-delivery return window, split Commission payments, and
