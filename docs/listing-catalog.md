@@ -44,7 +44,7 @@ Decisions recorded 31 October 2026 for the F06 increment.
   digital and physical Listings need at least one file to publish (§5.1, §6.2). Accepted by extension: png, jpg,
   jpeg, webp, tif, tiff, psd, pdf, zip, glb, gltf, obj, fbx, stl, blend; contents are not inspected. At most
   200 MB each and 10 per Listing. Removing a file deletes only the `ListingAsset` link. Only the owner and the
-  Admin can download Listing files until F08 adds entitlement checks.
+  Admin can download Listing files; buyers download through their entitlement ([Protected files](protected-files.md)).
 - **Out of scope here:** the quantity rule (digital = 1) at checkout (F09/F10); cost-change review (F07, see
   [Manufacturing cost review](manufacturing-cost-review.md));
   buyer file access (F08/F12); Order snapshots (F10).
@@ -76,9 +76,9 @@ New error codes: `LISTING_INVALID` (400); `LISTING_NOT_FOUND`, `LISTING_ASSET_NO
 
 ## Known limits
 
-- Uploads are read fully into memory; a 200 MB file needs that much heap per request.
+- Uploads are read fully into memory; a 200 MB file needs that much heap per request. Downloads are streamed (F08).
 - Publishing does not lock the Artist Profile row. Deactivation (priority 2) is not built yet, and Order
   creation must re-check availability in its own transaction anyway.
-- If a transaction rolls back after the file bytes were written, the bytes stay on disk unreferenced until
-  F08 adds cleanup.
+- If a transaction rolls back after the file bytes were written, the bytes stay on disk until the F08 orphan sweep
+  removes them ([Protected files](protected-files.md)).
 - Lists are not paged.

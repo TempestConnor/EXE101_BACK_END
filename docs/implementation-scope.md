@@ -28,6 +28,10 @@ F07 increment: manufacturing-cost changes flag affected physical Listings for Ar
 start against the configured costs, follow [Manufacturing cost review](manufacturing-cost-review.md). No Platform
 Fee configuration; the zero-fee Order Item snapshot is written by F10.
 
+F08 increment: entitlement-gated purchased-file downloads, streamed file responses and the scheduled orphan-bytes
+sweep follow [Protected files](protected-files.md). Granting entitlements belongs to F12; Commission file access to
+priority 3.
+
 Requirements change recorded 31 October 2026: the site is the storefront of one
 Artist team, with no Platform Fee, held funds released to each Artist's own
 account, a 48-hour post-delivery return window, split Commission payments, and

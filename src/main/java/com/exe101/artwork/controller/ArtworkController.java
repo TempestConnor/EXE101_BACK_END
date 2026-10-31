@@ -11,6 +11,7 @@ import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -117,13 +118,14 @@ public class ArtworkController {
     }
 
     @GetMapping("/{artworkId}/previews/{mediaId}/content")
-    public ResponseEntity<byte[]> getPreviewContent(
+    public ResponseEntity<Resource> getPreviewContent(
         @PathVariable Long artworkId, @PathVariable Long mediaId, @AuthenticationPrincipal Long userId
     ) {
         var content = artworkService.getOwnPreview(userId, artworkId, mediaId);
         var response = ResponseEntity.ok()
             .contentType(MediaType.parseMediaType(content.getContentType()))
-            .body(content.getBytes());
+            .contentLength(content.getByteLength())
+            .body(content.getContent());
 
         return response;
     }

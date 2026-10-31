@@ -68,6 +68,7 @@ public class SecurityConfiguration {
                 .requestMatchers("/admin/artworks", "/admin/artworks/**").hasRole("ADMIN")
                 .requestMatchers("/listings", "/listings/**").hasRole("CUSTOMER")
                 .requestMatchers("/admin/listings", "/admin/listings/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/purchases/assets/*/content").hasRole("CUSTOMER")
                 .requestMatchers(HttpMethod.GET, "/catalog/artworks", "/catalog/artworks/**").permitAll()
                 .anyRequest().denyAll())
             .exceptionHandling(errors -> errors

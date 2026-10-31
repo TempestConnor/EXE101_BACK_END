@@ -37,6 +37,7 @@ import org.mapstruct.factory.Mappers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.io.ByteArrayResource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -694,10 +695,10 @@ class ListingServiceTest {
     }
 
     @Test
-    void owner_downloads_own_asset_ok() {
+    void owner_downloads_own_asset_ok() throws Exception {
         // given
-        var content = FileContent.builder().withFileId(100L).withContentType("image/png").withBytes(fileBytes)
-            .build();
+        var content = FileContent.builder().withFileId(100L).withContentType("image/png")
+            .withByteLength(fileBytes.length).withContent(new ByteArrayResource(fileBytes)).build();
         ownedListing(digital("PUBLISHED", firstPublished), ArtworkStatus.PUBLISHED, "ACTIVE");
         when(assetRepository.findByListingAssetIdAndListingId(30L, 20L)).thenReturn(Optional.of(asset()));
         when(fileService.read(100L)).thenReturn(content);
@@ -706,7 +707,7 @@ class ListingServiceTest {
         var result = service.getOwnAsset(42L, 20L, 30L);
 
         // then
-        assertThat(result.getBytes()).isEqualTo(fileBytes);
+        assertThat(result.getContent().getContentAsByteArray()).isEqualTo(fileBytes);
     }
 
     @Test

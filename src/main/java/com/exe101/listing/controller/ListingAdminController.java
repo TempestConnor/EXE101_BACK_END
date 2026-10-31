@@ -7,6 +7,7 @@ import com.exe101.listing.service.ListingService;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -54,11 +55,12 @@ public class ListingAdminController {
     }
 
     @GetMapping("/{listingId}/assets/{assetId}/content")
-    public ResponseEntity<byte[]> getAssetContent(@PathVariable Long listingId, @PathVariable Long assetId) {
+    public ResponseEntity<Resource> getAssetContent(@PathVariable Long listingId, @PathVariable Long assetId) {
         var content = listingService.getAsset(listingId, assetId);
         var response = ResponseEntity.ok()
             .contentType(MediaType.parseMediaType(content.getContentType()))
-            .body(content.getBytes());
+            .contentLength(content.getByteLength())
+            .body(content.getContent());
 
         return response;
     }

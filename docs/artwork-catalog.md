@@ -76,6 +76,6 @@ Errors follow the Problem Details contract. New codes: `ARTIST_PROFILE_REQUIRED`
 ## Known limits
 
 - A change to tags alone does not bump `RowVer`, so two simultaneous tag-only edits are not detected as a conflict.
-- If a transaction rolls back after the preview bytes were written, the file stays on disk unreferenced until
-  F08 adds cleanup.
+- If a transaction rolls back after the preview bytes were written, the file stays on disk until the F08 orphan
+  sweep removes it ([Protected files](protected-files.md)).
 - Catalog lists are not paged; there is no list envelope yet.

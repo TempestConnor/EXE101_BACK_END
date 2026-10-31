@@ -5,7 +5,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.springframework.core.io.Resource;
 
+// The bytes are streamed from storage when the response is written, not held in memory.
 @Getter
 @Setter
 @NoArgsConstructor
@@ -15,5 +17,6 @@ public class FileContent {
     private Long fileId;
     private String originalName;
     private String contentType;
-    private byte[] bytes;
+    private long byteLength;
+    private Resource content;
 }

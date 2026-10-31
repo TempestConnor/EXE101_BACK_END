@@ -3,25 +3,29 @@ package com.exe101.file.service;
 import com.exe101.common.error.AppErrorMessage;
 import com.exe101.common.error.AppException;
 import com.exe101.entity.StoredFile;
+import com.exe101.file.config.StorageProperties;
 import com.exe101.file.mapper.FileEntityMapper;
 import com.exe101.file.model.FileContent;
 import com.exe101.file.model.NewFile;
 import com.exe101.file.model.StoredFileInfo;
+import com.exe101.file.repository.PurchasedFileRepository;
 import com.exe101.file.repository.StoredFileRepository;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,13 +39,14 @@ public class FileServiceImpl implements FileService {
     private static String publicPrefix = "public/";
     private static String protectedAccess = "PURCHASED";
     private static String protectedPrefix = "protected/";
+    private static List<String> storagePrefixes = List.of(publicPrefix, protectedPrefix);
     private static String defaultName = "file";
     private static String digestAlgorithm = "SHA-256";
     private static int maxNameLength = 260;
     private final StoredFileRepository repository;
+    private final PurchasedFileRepository purchasedFiles;
     private final FileEntityMapper mapper;
-    @Value("${app.storage.root}")
-    private String storageRoot;
+    private final StorageProperties storage;
 
     @Override
     public StoredFileInfo storePublic(NewFile file) {
@@ -64,22 +69,70 @@ public class FileServiceImpl implements FileService {
     public FileContent read(Long fileId) {
         StoredFile entity = repository.findById(fileId)
             .orElseThrow(() -> new AppException(AppErrorMessage.FILE_CONTENT_MISSING));
-        byte[] bytes;
 
-        try {
-            bytes = Files.readAllBytes(resolve(entity.getStorageKey()));
-        } catch (NoSuchFileException exception) {
-            log.error("[FILE] - ACTION: read: missing object: fileId: {}", fileId);
+        return content(entity);
+    }
+
+    // Access follows only the buyer's entitlement to the exact recorded asset. Listing, Artwork and Artist status
+    // are not checked: unlisting, moderation and deactivation stop new sales, not granted access (§5.3–6).
+    @Override
+    public FileContent readPurchased(Long userId, Long listingAssetId) {
+        Long fileId = purchasedFiles.findEntitledFileId(userId, listingAssetId)
+            .orElseThrow(() -> denied(listingAssetId));
+        StoredFile entity = repository.findById(fileId)
+            .orElseThrow(() -> new AppException(AppErrorMessage.FILE_CONTENT_MISSING));
+
+        if (!protectedAccess.equals(entity.getAccessClass())) {
+            log.error("[FILE] - ACTION: readPurchased: wrong access class: fileId: {}", fileId);
+            throw new AppException(AppErrorMessage.ENTITLEMENT_REQUIRED);
+        }
+
+        FileContent content = content(entity);
+        log.info("[FILE] - ACTION: readPurchased: userId: {}: fileId: {}", userId, fileId);
+
+        return content;
+    }
+
+    @Override
+    public int deleteOrphans() {
+        Instant cutoff = Instant.now().minus(storage.orphanMinAge());
+        int deleted = 0;
+
+        for (String prefix : storagePrefixes) {
+            for (Path object : objects(resolve(prefix))) {
+                if (isOlderThan(object, cutoff) && !repository.existsByStorageKey(prefix + object.getFileName())
+                    && delete(object)) {
+                    log.info("[FILE] - ACTION: deleteOrphan: storageKey: {}{}", prefix, object.getFileName());
+                    deleted++;
+                }
+            }
+        }
+
+        return deleted;
+    }
+
+    private AppException denied(Long listingAssetId) {
+        if (purchasedFiles.listingAssetExists(listingAssetId)) {
+            return new AppException(AppErrorMessage.ENTITLEMENT_REQUIRED);
+        }
+
+        return new AppException(AppErrorMessage.LISTING_ASSET_NOT_FOUND);
+    }
+
+    private FileContent content(StoredFile entity) {
+        Path path = resolve(entity.getStorageKey());
+
+        if (!Files.isRegularFile(path)) {
+            log.error("[FILE] - ACTION: read: missing object: fileId: {}", entity.getFileId());
             throw new AppException(AppErrorMessage.FILE_CONTENT_MISSING);
-        } catch (IOException exception) {
-            throw new UncheckedIOException(exception);
         }
 
         return FileContent.builder()
             .withFileId(entity.getFileId())
             .withOriginalName(entity.getOriginalName())
             .withContentType(entity.getContentType())
-            .withBytes(bytes)
+            .withByteLength(entity.getByteLength())
+            .withContent(new FileSystemResource(path))
             .build();
     }
 
@@ -105,7 +158,27 @@ public class FileServiceImpl implements FileService {
     }
 
     private Path resolve(String storageKey) {
-        return Path.of(storageRoot).resolve(storageKey);
+        return Path.of(storage.root()).resolve(storageKey);
+    }
+
+    private List<Path> objects(Path directory) {
+        if (!Files.isDirectory(directory)) {
+            return List.of();
+        }
+
+        try (Stream<Path> entries = Files.list(directory)) {
+            return entries.filter(Files::isRegularFile).toList();
+        } catch (IOException exception) {
+            throw new UncheckedIOException(exception);
+        }
+    }
+
+    private boolean isOlderThan(Path object, Instant cutoff) {
+        try {
+            return Files.getLastModifiedTime(object).toInstant().isBefore(cutoff);
+        } catch (IOException exception) {
+            return false;
+        }
     }
 
     private void write(Path target, byte[] bytes) {
@@ -117,11 +190,13 @@ public class FileServiceImpl implements FileService {
         }
     }
 
-    private void delete(Path target) {
+    private boolean delete(Path target) {
         try {
-            Files.deleteIfExists(target);
+            return Files.deleteIfExists(target);
         } catch (IOException exception) {
             log.warn("[FILE] - ACTION: delete: orphan left: storageKey: {}", target.getFileName());
+
+            return false;
         }
     }
 

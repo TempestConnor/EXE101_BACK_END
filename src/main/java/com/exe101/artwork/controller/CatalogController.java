@@ -5,6 +5,7 @@ import com.exe101.artwork.mapper.ArtworkMapper;
 import com.exe101.artwork.service.ArtworkService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,11 +37,12 @@ public class CatalogController {
     }
 
     @GetMapping("/{artworkId}/previews/{mediaId}/content")
-    public ResponseEntity<byte[]> getPreviewContent(@PathVariable Long artworkId, @PathVariable Long mediaId) {
+    public ResponseEntity<Resource> getPreviewContent(@PathVariable Long artworkId, @PathVariable Long mediaId) {
         var content = artworkService.getPublishedPreview(artworkId, mediaId);
         var response = ResponseEntity.ok()
             .contentType(MediaType.parseMediaType(content.getContentType()))
-            .body(content.getBytes());
+            .contentLength(content.getByteLength())
+            .body(content.getContent());
 
         return response;
     }

@@ -12,4 +12,8 @@ public interface FileService {
     boolean hasContent(Long fileId);
 
     FileContent read(Long fileId);
+
+    FileContent readPurchased(Long userId, Long listingAssetId);
+
+    int deleteOrphans();
 }

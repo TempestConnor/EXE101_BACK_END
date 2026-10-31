@@ -7,6 +7,7 @@ import com.exe101.artwork.service.ArtworkService;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -53,11 +54,12 @@ public class ArtworkAdminController {
     }
 
     @GetMapping("/{artworkId}/previews/{mediaId}/content")
-    public ResponseEntity<byte[]> getPreviewContent(@PathVariable Long artworkId, @PathVariable Long mediaId) {
+    public ResponseEntity<Resource> getPreviewContent(@PathVariable Long artworkId, @PathVariable Long mediaId) {
         var content = artworkService.getPreview(artworkId, mediaId);
         var response = ResponseEntity.ok()
             .contentType(MediaType.parseMediaType(content.getContentType()))
-            .body(content.getBytes());
+            .contentLength(content.getByteLength())
+            .body(content.getContent());
 
         return response;
     }

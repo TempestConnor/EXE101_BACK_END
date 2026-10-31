@@ -42,6 +42,7 @@ public enum AppErrorMessage {
     ARTWORK_MEDIA_NOT_FOUND(HttpStatus.NOT_FOUND, "Preview was not found."),
     ARTWORK_MEDIA_ORDER_TAKEN(HttpStatus.CONFLICT, "Another preview already uses this position."),
     FILE_CONTENT_MISSING(HttpStatus.NOT_FOUND, "File content is unavailable."),
+    ENTITLEMENT_REQUIRED(HttpStatus.FORBIDDEN, "This file is available only to Customers entitled to it."),
     LISTING_INVALID(HttpStatus.BAD_REQUEST, "Listing fields are invalid."),
     LISTING_NOT_FOUND(HttpStatus.NOT_FOUND, "Listing was not found."),
     LISTING_PRODUCT_UNKNOWN(HttpStatus.UNPROCESSABLE_CONTENT, "Manufacturing product is not known."),
