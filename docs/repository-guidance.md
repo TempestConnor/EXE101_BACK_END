@@ -5,7 +5,11 @@
 - Read [implementation scope](implementation-scope.md) before planning or implementing features. Its approved priorities and deferrals override broader scope and suggested implementation order in the business rules and feature specification; this intentional scope override is not an unresolved conflict. Behavioral rules and open questions for in-scope features still apply.
 - Read [README.md](../README.md) for setup and persistence conventions, [business rules](Marketplace_Business_Rules_Final.md) for business behavior and scope, and [feature specifications](EXE101_Features_Specification.md) for F01–F21, acceptance criteria, cross-feature rules, and open questions.
 - The feature specification derives from the business rules; SQL is an implementation baseline, not a source of additional business policy. Report conflicting passages or implementation mismatches explicitly; do not silently resolve them by inventing policy or changing the schema.
-- Consult section D of the feature specification (Q01–Q19) and feature-level **Needs Clarification** notes before implementing affected behavior. Ask for the missing decision, explain the affected path, and continue independent work. Do not turn an unresolved question into an assumed default.
+- Consult section D of the feature specification (Q01–Q19) and feature-level **Needs Clarification** notes before implementing affected behavior. Skip items whose Status is Resolved or Moot, or that are answered in a per-feature doc or assigned to a later feature. For each remaining item, ask for the decision, explain the affected path, and continue independent work.
+  - Financial policy, schema changes, and decisions that are hard to reverse once data exists: present the options without a recommendation ([financial correctness](financial-correctness.md)).
+  - Other items: you may propose one recommended answer with its reason.
+  - Do not build on an unapproved recommendation, and do not turn an unresolved question into an assumed default.
+  - Record each approved decision in the feature's doc and in the section D Status column, so it is not asked again.
 - `EXE101_SQL_Schema.sql` and `Marketplace_Schema_Notes.md` are referenced by the specification but are not currently in this repository. Do not claim to have checked them; obtain the relevant source when needed.
 
 ## Existing implementation and database

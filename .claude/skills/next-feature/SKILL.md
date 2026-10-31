@@ -3,7 +3,7 @@ name: next-feature
 description: Start the next feature from committed code — pick the next in-scope feature (F01–F21), create its `_feature_fNN` branch, and produce a kickoff brief with a test list to approve. Does not write production code.
 argument-hint: "[feature id, e.g. F04 — optional, defaults to the next in-scope feature]"
 disable-model-invocation: true
-allowed-tools: Bash(git status:*), Bash(git fetch:*), Bash(git branch:*), Bash(git log:*), Bash(git show:*), Bash(git ls-tree:*), Bash(git merge-base:*), Bash(git rev-parse:*), Bash(git switch:*), Read, Grep, Glob
+allowed-tools: Bash(git status:*), Bash(git fetch:*), Bash(git branch:*), Bash(git log:*), Bash(git show:*), Bash(git ls-tree:*), Bash(git merge-base:*), Bash(git rev-parse:*), Bash(git switch:*), Read, Grep, Glob, AskUserQuestion
 ---
 
 # Start the next feature
@@ -94,9 +94,25 @@ rules it cites in `docs/Marketplace_Business_Rules_Final.md` (including the
 2. **Scope for this increment** — what the spec requires, as amended by
    `implementation-scope.md`; call out anything explicitly out of scope.
 3. **Acceptance criteria** — from the spec, verbatim or tightly paraphrased.
-4. **Blocking questions** — each **Needs Clarification** note and Q-item that affects
-   this feature, with the code path it blocks. Do not propose an assumed default as
-   the answer. Mark which parts can proceed independently.
+4. **Open questions** — start from the Q-items and **Needs Clarification** notes that
+   affect this feature, then drop every one that is:
+   - **Resolved** or **Moot** in the section D Status column, or answered in a
+     per-feature doc (`docs/customer-authentication.md`, `docs/listing-catalog.md`, …);
+   - removed or settled by the 31 October amendment;
+   - assigned to a later feature or priority by `implementation-scope.md` or by an
+     earlier feature doc's "out of scope here" list.
+
+   List what was dropped in one line with the reason, so a wrong drop is visible.
+   Sort the rest into two groups, each with the code path it affects:
+   - **Blocking** — financial policy (amounts, rounding, refunds, releases, payment
+     anomalies), schema changes, or decisions that are hard to reverse once data
+     exists. Give no recommended answer; show the options and their consequences.
+   - **Recommended** — everything else. Give one recommended answer with a one-line
+     reason drawn from the spec, the business rules or earlier feature decisions.
+     It is a proposal, not an assumption: nothing is built on it until the user
+     approves it.
+
+   Mark which parts can proceed independently.
 5. **Schema touchpoints** — existing entities in `com.exe101.entity` the feature uses,
    and any schema additions the amendment implies (each needs a separate schema
    decision; the database is the schema authority).
@@ -132,5 +148,15 @@ rules it cites in `docs/Marketplace_Business_Rules_Final.md` (including the
    If the build fails, fix it or report the output. Do not commit a failing build.
 9. **Unfinished items in earlier features** — gaps found in step 2/3.
 
-End by asking which blocking questions the user can answer now, and whether the test
-list in item 8 is approved as written.
+End with one AskUserQuestion call (at most four questions; batch the rest in the
+brief). Ask:
+- one question per **Blocking** item, with its options;
+- one question to accept every **Recommended** answer as listed, with an option to
+  override some, naming them in a follow-up;
+- whether the test list in item 8 is approved as written.
+
+Record every answer during implementation, and commit it with the feature: put the
+decision in the feature's doc (`docs/<feature>.md`, under "Approved policies"), set
+the matching Status in section D of `docs/EXE101_Features_Specification.md` with a link
+to that doc, and mark the inline **Needs Clarification** note resolved. A decision
+recorded only in the chat will be asked again by the next run.
