@@ -25,13 +25,16 @@ import com.exe101.listing.model.ListingStatus;
 import com.exe101.listing.model.ListingStatusChange;
 import com.exe101.listing.model.ListingType;
 import com.exe101.listing.model.ManufacturingProduct;
+import com.exe101.listing.model.PurchaseOffer;
 import com.exe101.listing.repository.ListingAssetRepository;
 import com.exe101.listing.repository.ListingRepository;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.HashSet;
 import java.util.Map;
@@ -385,6 +388,37 @@ public class ListingServiceImpl implements ListingService {
             manufacturingCost, markup);
 
         return assemble(saved, artwork, artist);
+    }
+
+    @Override
+    public List<PurchaseOffer> findOffers(Collection<Long> listingIds) {
+        if (listingIds == null || listingIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<com.exe101.entity.Listing> entities = repository.findAllById(listingIds);
+        Map<Long, Artwork> artworks = new HashMap<>();
+        Map<Long, Artist> artists = new HashMap<>();
+
+        return entities.stream()
+            .map(entity -> {
+                Artwork artwork = artworks.computeIfAbsent(entity.getArtworkId(), artworkService::get);
+                Artist artist = artists.computeIfAbsent(artwork.getArtistId(), artistService::get);
+                boolean purchasable = ListingStatus.PUBLISHED.name().equals(entity.getStatus())
+                    && !entity.isCostReviewRequired() && artwork.getStatus() == ArtworkStatus.PUBLISHED
+                    && activeArtist.equals(artist.getStatus());
+
+                return PurchaseOffer.builder()
+                    .withListingId(entity.getListingId())
+                    .withListingType(ListingType.valueOf(entity.getListingType()))
+                    .withName(entity.getName())
+                    .withCurrencyCode(entity.getCurrencyCode())
+                    .withPrice(entity.getPrice())
+                    .withPurchasable(purchasable)
+                    .withArtistUserId(artist.getUserId())
+                    .build();
+            })
+            .toList();
     }
 
     private Artist requireActiveArtist(Long userId) {

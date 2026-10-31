@@ -62,6 +62,12 @@ public enum AppErrorMessage {
     LISTING_COST_REVIEW_REQUIRED(HttpStatus.CONFLICT,
         "The manufacturing cost changed; the Artist must review it before this Listing can change or be sold."),
     LISTING_COST_REVIEW_NOT_REQUIRED(HttpStatus.CONFLICT, "This Listing has no manufacturing cost change to review."),
+    CART_QUANTITY_INVALID(HttpStatus.BAD_REQUEST,
+        "Quantity must be 1 for a digital Listing and within the limit for a physical one."),
+    CART_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "This Listing is not in the Cart."),
+    CART_CONFLICT(HttpStatus.CONFLICT, "Cart was changed by another request; reload and retry."),
+    LISTING_NOT_PURCHASABLE(HttpStatus.UNPROCESSABLE_CONTENT, "This Listing is not available for purchase."),
+    SELF_PURCHASE_NOT_ALLOWED(HttpStatus.UNPROCESSABLE_CONTENT, "Artists cannot buy their own Listings."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "The request could not be completed.");
 
     private final HttpStatus status;

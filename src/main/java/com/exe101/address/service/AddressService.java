@@ -8,6 +8,8 @@ import java.util.List;
 public interface AddressService {
     List<Address> list(Long userId);
 
+    Address get(Long userId, Long addressId);
+
     Address create(Long userId, AddressDetails details);
 
     Address update(Long userId, Long addressId, AddressDetails details);

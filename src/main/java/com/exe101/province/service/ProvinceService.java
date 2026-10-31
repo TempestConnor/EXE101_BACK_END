@@ -15,4 +15,6 @@ public interface ProvinceService {
     List<Province> listSupported();
 
     Province requireSupported(String provinceCode);
+
+    boolean isSupported(String provinceCode);
 }

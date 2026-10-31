@@ -46,6 +46,11 @@ public class AddressServiceImpl implements AddressService {
     }
 
     @Override
+    public Address get(Long userId, Long addressId) {
+        return mapper.toModel(requireOwned(userId, addressId));
+    }
+
+    @Override
     public Address create(Long userId, AddressDetails details) {
         AddressDetails normalized = normalize(details);
         provinceService.requireSupported(normalized.getProvinceCode());

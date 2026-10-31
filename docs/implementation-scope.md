@@ -32,6 +32,10 @@ F08 increment: entitlement-gated purchased-file downloads, streamed file respons
 sweep follow [Protected files](protected-files.md). Granting entitlements belongs to F12; Commission file access to
 priority 3.
 
+F09 increment: the Cart with live prices, invalid items kept and marked, and the checkout preview with a
+flat shipping fee and a configured per-line tax rate follow [Cart and checkout](cart-checkout.md). Order creation,
+its atomic re-check and the price-difference rejection belong to F10.
+
 Requirements change recorded 31 October 2026: the site is the storefront of one
 Artist team, with no Platform Fee, held funds released to each Artist's own
 account, a 48-hour post-delivery return window, split Commission payments, and

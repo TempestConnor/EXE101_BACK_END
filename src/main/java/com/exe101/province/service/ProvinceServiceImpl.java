@@ -116,6 +116,14 @@ public class ProvinceServiceImpl implements ProvinceService {
         return mapper.toModel(entity);
     }
 
+    // Unlike requireSupported, does not throw, so a read-only caller's transaction is not marked for rollback.
+    @Override
+    public boolean isSupported(String provinceCode) {
+        return repository.findByProvinceCode(provinceCode)
+            .map(SupportedProvince::isIsSupported)
+            .orElse(false);
+    }
+
     private OffsetDateTime now() {
         return OffsetDateTime.now(ZoneOffset.UTC).withNano(0);
     }
