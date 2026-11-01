@@ -9,6 +9,7 @@ import com.exe101.commission.model.DeliverableSubmission;
 import com.exe101.commission.model.FileUpload;
 import com.exe101.commission.repository.CommissionDeliverableRepository;
 import com.exe101.commission.repository.CommissionEventRepository;
+import com.exe101.commission.repository.CommissionQuoteRepository;
 import com.exe101.commission.repository.CommissionRepository;
 import com.exe101.commission.repository.DeliverableFileRepository;
 import com.exe101.commission.repository.RevisionRequestRepository;
@@ -17,6 +18,7 @@ import com.exe101.common.error.AppException;
 import com.exe101.entity.Commission;
 import com.exe101.entity.CommissionDeliverable;
 import com.exe101.entity.CommissionEvent;
+import com.exe101.entity.CommissionQuote;
 import com.exe101.entity.DeliverableFile;
 import com.exe101.entity.DeliverableFileId;
 import com.exe101.entity.RevisionRequest;
@@ -24,6 +26,8 @@ import com.exe101.file.model.FileContent;
 import com.exe101.file.model.NewFile;
 import com.exe101.file.model.StoredFileInfo;
 import com.exe101.file.service.FileService;
+import com.exe101.proceeds.service.ProceedsService;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -46,6 +50,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -61,6 +66,7 @@ class CommissionDeliveryServiceTest {
     private static long deliverableId = 31L;
     private static long revisionId = 61L;
     private static long fileId = 70L;
+    private static long quoteId = 21L;
     private static byte[] fileBytes = {1, 2, 3};
     @Mock
     private CommissionRepository repository;
@@ -76,6 +82,10 @@ class CommissionDeliveryServiceTest {
     private ArtistService artistService;
     @Mock
     private FileService fileService;
+    @Mock
+    private CommissionQuoteRepository quoteRepository;
+    @Mock
+    private ProceedsService proceedsService;
     @Spy
     private CommissionEntityMapper commissionMapper = Mappers.getMapper(CommissionEntityMapper.class);
     @Spy
@@ -106,6 +116,7 @@ class CommissionDeliveryServiceTest {
                 .withAccessClass("COMMISSION")
                 .build();
         });
+        givenQuote("100001.0000", "10001.0000");
     }
 
     @Test
@@ -240,7 +251,7 @@ class CommissionDeliveryServiceTest {
         verify(eventRepository).saveAndFlush(event.capture());
 
         // then
-        // The final 50% is due now; it is paid with F18b, so no Payment is created here.
+        // The final 50% is due now and is paid through a payment attempt, so no Payment is created here.
         assertAll(
             () -> assertThat(result.getStatus()).isEqualTo(CommissionStatus.AWAITING_PAYMENT),
             () -> assertThat(commission.getStatus()).isEqualTo("AWAITING_PAYMENT"),
@@ -251,6 +262,35 @@ class CommissionDeliveryServiceTest {
             () -> assertThat(event.getValue().getRelatedId()).isEqualTo(deliverableId),
             () -> assertThat(event.getValue().getActorUserId()).isEqualTo(customerId)
         );
+        verify(proceedsService, never()).releaseQuote(any(), any());
+    }
+
+    @Test
+    void approve_zero_final_completes_ok() {
+        // given
+        // Price 1 and tax 0: the first installment is 1 VND and the final one 0 VND, which cannot be paid.
+        var commission = givenCommission("SUBMITTED_FOR_REVIEW");
+        givenDeliverable(1, 1);
+        var quote = givenQuote("1.0000", "0.0000");
+
+        // when
+        var result = service.approve(customerId, commissionId, deliverableId);
+        var event = ArgumentCaptor.forClass(CommissionEvent.class);
+        verify(eventRepository).saveAndFlush(event.capture());
+
+        // then
+        assertAll(
+            () -> assertThat(result.getStatus()).isEqualTo(CommissionStatus.COMPLETED),
+            () -> assertThat(commission.getStatus()).isEqualTo("COMPLETED"),
+            () -> assertThat(commission.getCompletedAt()).isNotNull(),
+            () -> assertThat(quote.getStatus()).isEqualTo("PAID"),
+            () -> assertThat(quote.getPaidAt()).isEqualTo(commission.getCompletedAt()),
+            () -> assertThat(event.getValue().getEventType()).isEqualTo("DELIVERABLE_APPROVED"),
+            () -> assertThat(event.getValue().getFromStatus()).isEqualTo("SUBMITTED_FOR_REVIEW"),
+            () -> assertThat(event.getValue().getToStatus()).isEqualTo("COMPLETED")
+        );
+        verify(quoteRepository).saveAndFlush(quote);
+        verify(proceedsService).releaseQuote(eq(quoteId), eq(commission.getCompletedAt()));
     }
 
     @Test
@@ -378,6 +418,47 @@ class CommissionDeliveryServiceTest {
     }
 
     @Test
+    void read_file_customer_after_completion_ok() {
+        // given
+        givenReadableFile("COMPLETED", 2, 2);
+        var content = FileContent.builder().withFileId(fileId).withContentType("image/png")
+            .withByteLength(fileBytes.length).withContent(new ByteArrayResource(fileBytes)).build();
+        when(fileService.read(fileId)).thenReturn(content);
+
+        // when
+        var result = service.readFile(customerId, commissionId, deliverableId, fileId);
+
+        // then
+        assertThat(result).isSameAs(content);
+    }
+
+    @Test
+    void read_file_customer_earlier_version_ko() {
+        // given
+        givenReadableFile("COMPLETED", 1, 2);
+
+        // when / then
+        assertThatThrownBy(() -> service.readFile(customerId, commissionId, deliverableId, fileId))
+            .isInstanceOf(AppException.class)
+            .extracting("error")
+            .isEqualTo(AppErrorMessage.DELIVERABLE_LOCKED);
+        verify(fileService, never()).read(any());
+    }
+
+    @Test
+    void read_file_customer_awaiting_final_payment_ko() {
+        // given
+        givenReadableFile("AWAITING_PAYMENT", 1, 1);
+
+        // when / then
+        assertThatThrownBy(() -> service.readFile(customerId, commissionId, deliverableId, fileId))
+            .isInstanceOf(AppException.class)
+            .extracting("error")
+            .isEqualTo(AppErrorMessage.DELIVERABLE_LOCKED);
+        verify(fileService, never()).read(any());
+    }
+
+    @Test
     void list_versions_by_outsider_ko() {
         // given
         when(repository.findById(commissionId)).thenReturn(Optional.of(commission("SUBMITTED_FOR_REVIEW")));
@@ -420,9 +501,23 @@ class CommissionDeliveryServiceTest {
     }
 
     private void givenReadableFile() {
-        when(repository.findById(commissionId)).thenReturn(Optional.of(commission("SUBMITTED_FOR_REVIEW")));
-        givenDeliverable(1, 1);
+        givenReadableFile("SUBMITTED_FOR_REVIEW", 1, 1);
+    }
+
+    private void givenReadableFile(String status, int versionNo, int lastVersionNo) {
+        when(repository.findById(commissionId)).thenReturn(Optional.of(commission(status)));
+        givenDeliverable(versionNo, lastVersionNo);
         when(deliverableFileRepository.existsById(new DeliverableFileId(deliverableId, fileId))).thenReturn(true);
+    }
+
+    // The Commission's one accepted Quote, paid in two installments.
+    private CommissionQuote givenQuote(String price, String tax) {
+        var quote = new CommissionQuote(commissionId, 1, "Full-body portrait", "3 weeks", new BigDecimal(price),
+            new BigDecimal(tax), "VND", "ACCEPTED", now());
+        quote.setQuoteId(quoteId);
+        quote.setAcceptedAt(now());
+        when(quoteRepository.findByCommissionIdAndStatus(commissionId, "ACCEPTED")).thenReturn(List.of(quote));
+        return quote;
     }
 
     private Commission commission(String status) {

@@ -131,7 +131,7 @@ public class LedgerServiceImpl implements LedgerService {
         BigDecimal amount = movement.getAmount();
         post(LedgerEventType.RELEASE_PAID, LedgerSourceType.PAYOUT, movement.getSourceId(), movement.getOccurredAt(),
             List.of(
-                line(LedgerAccount.ARTIST_RELEASING, movement.getArtistId(), movement.getOrderItemId(), amount),
+                artistLine(LedgerAccount.ARTIST_RELEASING, movement, amount),
                 line(LedgerAccount.CASH, null, null, amount.negate())));
     }
 
@@ -241,8 +241,8 @@ public class LedgerServiceImpl implements LedgerService {
     ) {
         BigDecimal amount = movement.getAmount();
         post(type, sourceType, movement.getSourceId(), movement.getOccurredAt(), List.of(
-            line(from, movement.getArtistId(), movement.getOrderItemId(), amount),
-            line(to, movement.getArtistId(), movement.getOrderItemId(), amount.negate())));
+            artistLine(from, movement, amount),
+            artistLine(to, movement, amount.negate())));
     }
 
     // Lines of 0 carry nothing and are left out; an event that moves nothing is not recorded.
@@ -370,6 +370,17 @@ public class LedgerServiceImpl implements LedgerService {
             .withAccount(account)
             .withArtistId(artistId)
             .withOrderItemId(orderItemId)
+            .withAmount(amount)
+            .build();
+    }
+
+    // An Artist account line names the Order Item or the Quote the money is owed for.
+    private LedgerLine artistLine(LedgerAccount account, ArtistMovement movement, BigDecimal amount) {
+        return LedgerLine.builder()
+            .withAccount(account)
+            .withArtistId(movement.getArtistId())
+            .withOrderItemId(movement.getOrderItemId())
+            .withQuoteId(movement.getQuoteId())
             .withAmount(amount)
             .build();
     }

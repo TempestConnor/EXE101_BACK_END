@@ -9,6 +9,7 @@ import com.exe101.common.error.AppException;
 import com.exe101.entity.ArtistProceeds;
 import com.exe101.entity.Payout;
 import com.exe101.entity.PayoutLine;
+import com.exe101.ledger.model.ArtistMovement;
 import com.exe101.ledger.service.LedgerService;
 import com.exe101.listing.model.ListingType;
 import com.exe101.order.model.Order;
@@ -43,6 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -59,6 +61,8 @@ class ProceedsServiceTest {
     private static long physicalArtistId = 22L;
     private static long proceedsId = 500L;
     private static long payoutId = 600L;
+    private static long quoteId = 21L;
+    private static long commissionArtistId = 23L;
     @Mock
     private ProceedsRepository repository;
     @Mock
@@ -347,6 +351,124 @@ class ProceedsServiceTest {
         );
         verify(releaseRepository, never()).saveAndFlush(any());
         verify(lineRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void release_quote_ok() {
+        // given
+        // Amendment §D.13: the full Quote amount is released at completion, one release per installment.
+        var first = quoteProceeds(1, "HELD", "50001.0000");
+        var last = quoteProceeds(2, "HELD", "50000.0000");
+        when(repository.findWithLockByQuoteIdOrderByInstallmentAsc(quoteId)).thenReturn(List.of(first, last));
+        var completedAt = now();
+
+        // when
+        var released = service.releaseQuote(quoteId, completedAt);
+        var releasedMoves = ArgumentCaptor.forClass(ArtistMovement.class);
+        verify(ledgerService, times(2)).recordProceedsReleased(releasedMoves.capture());
+        var createdMoves = ArgumentCaptor.forClass(ArtistMovement.class);
+        verify(ledgerService, times(2)).recordReleaseCreated(createdMoves.capture());
+
+        // then
+        assertAll(
+            () -> assertThat(released).hasSize(2),
+            () -> assertThat(released).extracting(proceeds -> proceeds.getStatus())
+                .containsOnly(ProceedsStatus.RESERVED),
+            () -> assertThat(first.getEligibleAt()).isEqualTo(completedAt),
+            () -> assertThat(last.getEligibleAt()).isEqualTo(completedAt),
+            () -> assertThat(savedReleases).extracting(Payout::getAmount)
+                .containsExactly(new BigDecimal("50001.0000"), new BigDecimal("50000.0000")),
+            () -> assertThat(savedReleases).extracting(Payout::getArtistId).containsOnly(commissionArtistId),
+            () -> assertThat(savedReleases).extracting(Payout::getStatus).containsOnly("PENDING"),
+            () -> assertThat(savedLines).extracting(PayoutLine::getProceedsId)
+                .containsExactly(first.getProceedsId(), last.getProceedsId()),
+            () -> assertThat(releasedMoves.getAllValues()).extracting(ArtistMovement::getQuoteId).containsOnly(quoteId),
+            () -> assertThat(releasedMoves.getAllValues()).extracting(ArtistMovement::getOrderItemId).containsOnlyNulls(),
+            () -> assertThat(createdMoves.getAllValues()).extracting(ArtistMovement::getQuoteId).containsOnly(quoteId)
+        );
+        verifyNoInteractions(auditService);
+    }
+
+    @Test
+    void release_quote_zero_installment_ok() {
+        // given
+        // Tax only in the final installment: its proceeds are 0, settled at completion without a release.
+        var first = quoteProceeds(1, "HELD", "1.0000");
+        var last = quoteProceeds(2, "HELD", "0.0000");
+        when(repository.findWithLockByQuoteIdOrderByInstallmentAsc(quoteId)).thenReturn(List.of(first, last));
+        var completedAt = now();
+
+        // when
+        service.releaseQuote(quoteId, completedAt);
+
+        // then
+        assertAll(
+            () -> assertThat(first.getStatus()).isEqualTo("RESERVED"),
+            () -> assertThat(last.getStatus()).isEqualTo("PAID"),
+            () -> assertThat(last.getEligibleAt()).isEqualTo(completedAt),
+            () -> assertThat(last.getPaidAt()).isEqualTo(completedAt),
+            () -> assertThat(savedReleases).hasSize(1),
+            () -> assertThat(savedLines).extracting(PayoutLine::getProceedsId).containsExactly(first.getProceedsId())
+        );
+    }
+
+    @Test
+    void release_quote_already_released_ko() {
+        // given
+        var first = quoteProceeds(1, "RESERVED", "50001.0000");
+        var last = quoteProceeds(2, "PAID", "50000.0000");
+        when(repository.findWithLockByQuoteIdOrderByInstallmentAsc(quoteId)).thenReturn(List.of(first, last));
+
+        // when
+        var released = service.releaseQuote(quoteId, now());
+
+        // then
+        assertAll(
+            () -> assertThat(released).isEmpty(),
+            () -> assertThat(first.getStatus()).isEqualTo("RESERVED"),
+            () -> assertThat(last.getStatus()).isEqualTo("PAID")
+        );
+        verify(repository, never()).saveAndFlush(any());
+        verify(releaseRepository, never()).saveAndFlush(any());
+        verify(lineRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(ledgerService);
+    }
+
+    @Test
+    void record_release_paid_quote_ok() {
+        // given
+        lockedRelease("PROCESSING");
+        var line = new PayoutLine(payoutId, proceedsId, new BigDecimal("60000.0000"), true);
+        when(lineRepository.findByPayoutIdAndIsActiveTrue(payoutId)).thenReturn(Optional.of(line));
+        var proceeds = new ArtistProceeds(commissionArtistId, null, quoteId, new BigDecimal("60000.0000"), "VND",
+            "RESERVED", now().minusHours(1), null);
+        proceeds.setProceedsId(proceedsId);
+        proceeds.setInstallment(1);
+        when(repository.findWithLockByProceedsId(proceedsId)).thenReturn(Optional.of(proceeds));
+
+        // when
+        service.recordOutcome(staffId, payoutId, outcome(ReleaseStatus.PAID, "VCB-20261102-0007"));
+        var movement = ArgumentCaptor.forClass(ArtistMovement.class);
+        verify(ledgerService).recordReleasePaid(movement.capture());
+
+        // then
+        assertAll(
+            () -> assertThat(proceeds.getStatus()).isEqualTo("PAID"),
+            () -> assertThat(movement.getValue().getSourceId()).isEqualTo(payoutId),
+            () -> assertThat(movement.getValue().getQuoteId()).isEqualTo(quoteId),
+            () -> assertThat(movement.getValue().getOrderItemId()).isNull(),
+            () -> assertThat(movement.getValue().getArtistId()).isEqualTo(commissionArtistId),
+            () -> assertThat(movement.getValue().getAmount()).isEqualByComparingTo("60000")
+        );
+    }
+
+    private ArtistProceeds quoteProceeds(int installment, String status, String amount) {
+        var proceeds = new ArtistProceeds(commissionArtistId, null, quoteId, new BigDecimal(amount), "VND", status,
+            null, null);
+        proceeds.setProceedsId(proceedsId + installment);
+        proceeds.setInstallment(installment);
+
+        return proceeds;
     }
 
     private ArtistProceeds lockedProceeds(String status, String amount) {

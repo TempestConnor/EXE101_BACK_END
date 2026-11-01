@@ -88,6 +88,28 @@ class QuotePaymentAttemptControllerTest {
     }
 
     @Test
+    void start_final_payment_attempt_ok() throws Exception {
+        // given
+        var token = customerToken();
+        when(payments.startQuote(eq(42L), eq(3L), eq(21L), anyString())).thenReturn(PaymentStart.builder()
+            .withAttemptId(501L)
+            .withCommissionId(3L)
+            .withQuoteId(21L)
+            .withInstallment(2)
+            .withAmount(new BigDecimal("55000.0000"))
+            .withPaymentUrl(paymentUrl)
+            .withExpiresAt(OffsetDateTime.of(2026, 11, 20, 10, 30, 0, 0, ZoneOffset.UTC))
+            .build());
+
+        // when / then
+        mvc.perform(post("/commissions/3/quotes/21/payment-attempts").header("Authorization", "Bearer " + token))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.attemptId").value(501))
+            .andExpect(jsonPath("$.installment").value(2))
+            .andExpect(jsonPath("$.amount").value(55000.0));
+    }
+
+    @Test
     void start_quote_payment_staff_token_ko() throws Exception {
         // given
         var staffToken = staffIssuer.issue(7L).getAccessToken();

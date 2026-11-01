@@ -80,7 +80,8 @@ so its amounts follow [financial correctness](financial-correctness.md): the ser
   ledger and reconciliation); the final payment waits for F18.
 - Change Quotes (§21, +10.000 VND per change, D10), including 0 VND changes, and how they are paid (amendment §E).
 - The spec's F17 acceptance criteria ("a 0 VND change after a paid Quote creates no payment"; "a failed payment does
-  not start work"), and the 7-day final-payment deadline (§D.14).
+  not start work"). The 7-day final-payment deadline (§D.14) was removed on 2 November 2026
+  ([Commission final payment and completion](commission-completion.md)).
 - The license contract on acceptance (amendment §D.17), which waits for its fields and a schema decision.
 
 ## Known limits

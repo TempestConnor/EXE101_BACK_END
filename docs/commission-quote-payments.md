@@ -68,11 +68,8 @@ one installment have exactly one winner: the second finds the Payment `SUCCEEDED
 
 ## Deferred
 
-- **The final payment** (installment 2), due after the Customer approves the work. Approval is done
-  ([Commission delivery](commission-delivery.md), F18) and returns the Commission to `AWAITING_PAYMENT`; paying it is F18b. With it come the Quote's
-  `PAID` status, the release of the full amount at completion, and the 7-day close of an unpaid final payment, which
-  releases installment 1 alone (§D.14).
-- **Releasing Quote proceeds.** `ArtistMovement` and the release path only know Order Items yet.
+- **The final payment** (installment 2) and **releasing Quote proceeds** at completion: done in F18b,
+  [Commission final payment and completion](commission-completion.md). The 7-day close (§D.14) was removed.
 - **Change Quotes** (§21, +10.000 VND per change, D10), including 0 VND changes, and how they are paid and refunded
   (amendment §E).
 - **Cancellation and refunds** of the first payment (F19/F20). The §D.15 table no longer applies: the refund is an
@@ -85,9 +82,9 @@ one installment have exactly one winner: the second finds the Payment `SUCCEEDED
   yet. Closing it: cancellation (F19), or a payment deadline decided with it.
 - **Money behind a Quote exception is refunded by hand and not recorded,** as for Orders ([Refunds](refunds.md#known-limits)).
   Its amount sits in `UNAPPLIED`. Closing it: a recorded refund path for exception payments.
-- **Held first payments cannot be released yet.** An `IN_PROGRESS` Commission's proceeds stay `HELD` until the release
-  milestone is built. That is safe for refunds (amendment §B.8), but the Artist cannot be paid. Closing it: the
-  completion and 7-day-close releases.
+- **Held first payments are released only at completion** (F18b). A Commission that is never completed keeps them
+  `HELD`; that is safe for refunds (amendment §B.8), but the Artist is not paid. Closing it: cancellation with an agreed
+  outcome (F19/F20).
 - **The VNPay sandbox has not been exercised,** as in [Payment](payment.md#known-limits), and the class-release
   limitations of amendment F.10 apply unchanged.
 

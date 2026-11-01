@@ -10,7 +10,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 // How a provider-confirmed payment was applied to its Quote installment. When it is PAID, the amount splits into the
-// Artist's share of the price (proceeds, fee 0) and the tax; the two add up to the amount.
+// Artist's share of the price (proceeds, fee 0) and the tax; the two add up to the amount. completed is set when the
+// final installment completed the Commission, which releases the Quote's proceeds.
 @Getter
 @Setter
 @NoArgsConstructor
@@ -27,4 +28,5 @@ public class QuoteSettlement {
     private BigDecimal proceeds;
     private BigDecimal taxAmount;
     private OffsetDateTime paidAt;
+    private boolean completed;
 }

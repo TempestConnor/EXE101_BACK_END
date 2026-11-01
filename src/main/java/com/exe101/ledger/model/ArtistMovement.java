@@ -8,7 +8,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-// Money owed to one Artist for one item moving between the Artist accounts, caused by a proceeds or release record.
+// Money owed to one Artist for one Order Item or Quote moving between the Artist accounts, caused by a proceeds or
+// release record. Exactly one of orderItemId and quoteId is set (CK_LedgerEntry_ArtistAccount).
 @Getter
 @Setter
 @NoArgsConstructor
@@ -18,6 +19,7 @@ public class ArtistMovement {
     private Long sourceId;
     private Long artistId;
     private Long orderItemId;
+    private Long quoteId;
     private BigDecimal amount;
     private OffsetDateTime occurredAt;
 }

@@ -47,9 +47,9 @@ public interface ReconciliationRepository extends Repository<LedgerTransaction, 
         + " AND t.sourceType = 'PROVIDER_EVENT' AND t.sourceId = e.providerEventId)")
     List<Long> findExceptionsWithoutEntry();
 
-    // VOID proceeds were refunded while still held, so they were never released.
-    @Query("SELECT p.proceedsId FROM ArtistProceeds p WHERE p.orderItemId IS NOT NULL"
-        + " AND p.status NOT IN ('HELD', 'VOID') AND p.amount <> 0 AND NOT EXISTS (SELECT 1 FROM LedgerTransaction t WHERE t.type = 'PROCEEDS_RELEASED'"
+    // Order Item and Quote proceeds alike. VOID proceeds were refunded while still held, so they were never released.
+    @Query("SELECT p.proceedsId FROM ArtistProceeds p WHERE p.status NOT IN ('HELD', 'VOID') AND p.amount <> 0"
+        + " AND NOT EXISTS (SELECT 1 FROM LedgerTransaction t WHERE t.type = 'PROCEEDS_RELEASED'"
         + " AND t.sourceType = 'PROCEEDS' AND t.sourceId = p.proceedsId)")
     List<Long> findReleasedProceedsWithoutEntry();
 

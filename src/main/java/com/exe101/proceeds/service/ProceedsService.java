@@ -6,6 +6,7 @@ import com.exe101.proceeds.model.Proceeds;
 import com.exe101.proceeds.model.Release;
 import com.exe101.proceeds.model.ReleaseOutcome;
 import com.exe101.proceeds.model.ReleaseStatus;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -15,6 +16,8 @@ public interface ProceedsService {
     Optional<Proceeds> holdQuote(QuoteSettlement settlement);
 
     Optional<Proceeds> releasePhysical(Long orderItemId);
+
+    List<Proceeds> releaseQuote(Long quoteId, OffsetDateTime completedAt);
 
     Optional<Proceeds> findLockedByOrderItem(Long orderItemId);
 

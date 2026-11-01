@@ -3,6 +3,7 @@ package com.exe101.payment.service;
 import com.exe101.address.service.AddressService;
 import com.exe101.cart.mapper.CartMapperImpl;
 import com.exe101.cart.service.CartService;
+import com.exe101.commission.model.QuotePayment;
 import com.exe101.commission.model.QuoteSettlement;
 import com.exe101.commission.service.CommissionPaymentService;
 import com.exe101.common.error.AppErrorMessage;
@@ -62,6 +63,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -75,6 +77,7 @@ import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -631,6 +634,7 @@ class PaymentServiceTest {
         assertThat(amount.getValue()).isEqualByComparingTo(total);
         verify(ledgerService).recordQuotePayment(settlement);
         verify(proceedsService).holdQuote(settlement);
+        verify(proceedsService, never()).releaseQuote(any(), any());
         verify(orderRepository, never()).findWithLockByOrderId(anyLong());
         verifyNoInteractions(entitlementService, fulfillmentService);
         verify(proceedsService, never()).recordPaid(any());
@@ -681,6 +685,66 @@ class PaymentServiceTest {
         verify(ledgerService).recordUnapplied(any(), any(), any());
         verify(ledgerService, never()).recordQuotePayment(any());
         verify(proceedsService, never()).holdQuote(any());
+    }
+
+    @Test
+    void vnpay_final_quote_payment_success_ok() {
+        // given
+        // The final installment completes the Commission: its receipt and hold come first, then the release of the
+        // whole Quote, all in the notification's transaction.
+        var ref = "t".repeat(32);
+        givenAttempt(ref, "INITIATED");
+        var settlement = quoteSettlement(PaymentSettlement.PAID);
+        settlement.setInstallment(2);
+        settlement.setCompleted(true);
+        when(commissionPaymentService.isQuotePayment(paymentId)).thenReturn(true);
+        when(commissionPaymentService.settlePayment(any(), any(), any())).thenReturn(settlement);
+
+        // when
+        var result = service.handleVnpayNotification(signed(notification(ref, totalTimes100, "00")));
+
+        // then
+        assertAll(
+            () -> assertThat(result.getReply()).isEqualTo(VnpayReply.CONFIRMED),
+            () -> assertThat(result.getOutcome()).isEqualTo(EventOutcome.PROCESSED),
+            () -> assertThat(attempt(ref).getStatus()).isEqualTo("SUCCEEDED"),
+            () -> assertThat(savedEvents.getFirst().getOutcome()).isEqualTo("PROCESSED")
+        );
+        InOrder order = inOrder(ledgerService, proceedsService);
+        order.verify(ledgerService).recordQuotePayment(settlement);
+        order.verify(proceedsService).holdQuote(settlement);
+        order.verify(proceedsService).releaseQuote(21L, settlement.getPaidAt());
+        verifyNoInteractions(entitlementService, fulfillmentService);
+    }
+
+    @Test
+    void start_quote_final_installment_ok() {
+        // given
+        when(commissionPaymentService.preparePayment(buyerId, 3L, 21L)).thenReturn(QuotePayment.builder()
+            .withPaymentId(paymentId)
+            .withCommissionId(3L)
+            .withQuoteId(21L)
+            .withInstallment(2)
+            .withAmount(new BigDecimal("55000.0000"))
+            .build());
+
+        // when
+        var result = service.startQuote(buyerId, 3L, 21L, "203.0.113.7");
+
+        // then
+        // No deadline for the final payment: the page stays open as long as an Order's would.
+        var attempt = savedAttempts.getFirst();
+        var url = result.getPaymentUrl();
+        var fields = fields(url.substring(payUrl.length() + 1, url.indexOf("&vnp_SecureHash=")));
+        assertAll(
+            () -> assertThat(result.getInstallment()).isEqualTo(2),
+            () -> assertThat(result.getAmount()).isEqualByComparingTo("55000"),
+            () -> assertThat(result.getCommissionId()).isEqualTo(3L),
+            () -> assertThat(result.getQuoteId()).isEqualTo(21L),
+            () -> assertThat(result.getExpiresAt()).isEqualTo(attempt.getCreatedAt().plusMinutes(30)),
+            () -> assertThat(attempt.getPaymentId()).isEqualTo(paymentId),
+            () -> assertThat(fields).containsEntry("vnp_Amount", "5500000")
+        );
     }
 
     private QuoteSettlement quoteSettlement(PaymentSettlement settlement) {

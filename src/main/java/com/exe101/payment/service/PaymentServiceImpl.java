@@ -107,6 +107,7 @@ public class PaymentServiceImpl implements PaymentService {
             .withAttemptId(saved.getAttemptId())
             .withCommissionId(commissionId)
             .withQuoteId(quoteId)
+            .withInstallment(payment.getInstallment())
             .withAmount(payment.getAmount())
             .withPaymentUrl(paymentUrl)
             .withExpiresAt(expiresAt)
@@ -186,6 +187,11 @@ public class PaymentServiceImpl implements PaymentService {
         if (paid && quote != null) {
             ledgerService.recordQuotePayment(quote);
             proceedsService.holdQuote(quote);
+
+            // The final installment completed the Commission: the full Quote amount is released (amendment §D.13).
+            if (quote.isCompleted()) {
+                proceedsService.releaseQuote(quote.getQuoteId(), quote.getPaidAt());
+            }
         } else if (paid) {
             Order order = orderService.getLockedByPayment(attempt.getPaymentId());
             entitlementService.grantDigital(order);

@@ -1,6 +1,9 @@
 # Artist proceeds, releases and the ledger (F14)
 
-Decisions recorded 1 November 2026 for the F14 increment. Order Items only; Quote proceeds belong to priority 3.
+Decisions recorded 1 November 2026 for the F14 increment, for Order Items. Quote proceeds (priority 3) use the same
+records, releases and ledger accounts, with the Artist lines naming the Quote: held per installment at payment
+([Commission Quote payments](commission-quote-payments.md)) and released when the Commission completes
+([Commission final payment and completion](commission-completion.md)).
 The money rules these implement, and the class release's declared limitations, are
 [amendment F](Marketplace_Business_Rules_Final.md#amendment-f--money-handling-1-november-2026) of the business rules.
 

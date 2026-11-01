@@ -2,7 +2,8 @@
 
 Decisions recorded 2 November 2026 for the first F18 increment: the **delivery loop**. The commissioned Artist submits
 versions of the work, and the Customer approves the latest one or asks for a revision. Approval makes the final 50%
-payment due. Paying it, unlocking the files and completing the Commission come with F18b (see [Deferred](#deferred)).
+payment due. Paying it, unlocking the files and completing the Commission are F18b:
+[Commission final payment and completion](commission-completion.md).
 
 ## Approved policies
 
@@ -14,12 +15,14 @@ payment due. Paying it, unlocking the files and completing the Commission come w
   reviewed by the Admin and never more than the held first payment. How the Admin checks the agreed amount is settled
   with F20. See [Known limits](#known-limits) for the weakness.
 - **Approval state (B3):** approval returns the Commission to `AWAITING_PAYMENT`. No migration. The first installment is
-  already `SUCCEEDED`, so the F17b payment path refuses a new attempt (`409 QUOTE_NOT_PAYABLE`), and a late success for
-  it is recorded as `ALREADY_PAID` with the status unchanged ([Commission Quote payments](commission-quote-payments.md)).
-  The approval time is the `DELIVERABLE_APPROVED` event's `OccurredAt`; the 7-day deadline (§D.14) will count from it.
+  already `SUCCEEDED`, so it is never paid again: a new attempt pays the final installment
+  ([F18b](commission-completion.md)), and a late success for the first is recorded as `ALREADY_PAID` with the status
+  unchanged ([Commission Quote payments](commission-quote-payments.md)). The approval time is the
+  `DELIVERABLE_APPROVED` event's `OccurredAt`; the final payment has no deadline (F18b B1).
 - **No preview yet (B4):** the review preview format is undecided (amendment §E). Both participants see each version's
   notes and file names and sizes, but only the Artist can download the files. The Customer gets
-  `403 DELIVERABLE_LOCKED` until the final payment (F18b), and reviews through images shared in the message thread.
+  `403 DELIVERABLE_LOCKED` until the final payment, which unlocks the approved version
+  ([F18b](commission-completion.md)), and reviews through images shared in the message thread.
   This does not yet meet §D.13's protected preview.
 - **Immutable versions (B5, migration `0006_deliverable_immutable.sql`):** triggers reject `UPDATE` and `DELETE` on
   `CommissionDeliverable`, `DeliverableFile` and `RevisionRequest` (`THROW` 51012–51014), as `TR_Message_Immutable`
@@ -66,14 +69,15 @@ or `409 COMMISSION_CLOSED`; invalid notes, details or no files: `400 COMMISSION_
 ## Financial correctness
 
 F18 moves and records no money. It touches money in one place: reusing `AWAITING_PAYMENT` after approval. The F17b
-guards keep the first installment from being paid twice (`payment_attempt_after_approval_ko`,
-`first_payment_success_after_approval_ko`). The held first payment stays `HELD`.
+guards keep the first installment from being paid twice (`payment_attempt_after_approval_never_repays_first_ok`,
+`first_payment_success_after_approval_ko`). The held first payment stays `HELD` until the final payment completes the
+Commission ([F18b](commission-completion.md)).
 
 ## Deferred
 
-- **F18b:** the final payment (installment 2) after approval, the Quote's `PAID` status, `COMPLETED` and unlocking the
-  files on its confirmation, releasing Quote proceeds, and the 7-day close of an unpaid final payment (§D.14). F18b
-  must tell the final payment apart from the first by its installment, since both are due in `AWAITING_PAYMENT`.
+- **F18b** (done, [Commission final payment and completion](commission-completion.md)): the final payment, the
+  Quote's `PAID` status, `COMPLETED`, unlocking the approved version and releasing Quote proceeds. The 7-day close
+  (§D.14) was removed instead of built.
 - **The review preview** (format undecided, amendment §E).
 - **Change Quotes, cancellation, disputes and refunds** (F17 onwards, F19, F20).
 
@@ -82,12 +86,12 @@ guards keep the first installment from being paid twice (`payment_attempt_after_
 - **No record of work progress.** Without stages, a Customer who disputes an agreed refund has only the message
   thread and the submitted versions as evidence, and the Admin has no fixed rule to check an agreed amount against.
   Closing it: a refund policy stored with each Quote (per Artist), or a progress record the Customer can see.
-- **`AWAITING_PAYMENT` means two things** until F18b: the first payment is due (installment 1 `PENDING` or absent) or
-  the final one (installment 1 `SUCCEEDED`). Clients must read the Quote's payments to tell them apart. Closing it: a
-  separate status, which needs a migration.
+- **`AWAITING_PAYMENT` means two things:** the first payment is due (installment 1 `PENDING` or absent) or the final
+  one (installment 1 `SUCCEEDED`). Clients must read the Quote's payments to tell them apart. Closing it: a separate
+  status, which needs a migration.
 - **No protected preview.** The Customer approves without seeing the files in the system. Closing it: a preview file
   per version, which needs a decided format and a schema change.
-- **An approved Commission waits for a final payment that cannot be made yet,** until F18b.
+- **An approved Commission can wait for its final payment forever** (no deadline, F18b B1).
 - **Uploads are read fully into memory,** as for Commission attachments.
 
 ## Tests

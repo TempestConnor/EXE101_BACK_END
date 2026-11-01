@@ -22,20 +22,23 @@ import com.exe101.order.model.PaymentStatus;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-// The first 50% of an accepted Quote is paid before the sketch (amendment §D.12–13). Both starting a payment and
-// settling one lock the Commission row first and then the Payment, so a payment can never race the Quote actions on
-// the same Commission, and two successes for one installment have exactly one winner (§31.3).
+// The first 50% of an accepted Quote is paid before the sketch, the final 50% after the Customer approves the work
+// (amendment §D.12–13). Both starting a payment and settling one lock the Commission row first and then the Payment,
+// so a payment can never race the Quote or delivery actions on the same Commission, and two successes for one
+// installment have exactly one winner (§31.3).
 @Slf4j
 @Service
 @Transactional
 @RequiredArgsConstructor
 public class CommissionPaymentServiceImpl implements CommissionPaymentService {
     private static int firstInstallment = 1;
+    private static int finalInstallment = 2;
     private static String currency = "VND";
     private final CommissionRepository repository;
     private final CommissionQuoteRepository quoteRepository;
@@ -43,8 +46,10 @@ public class CommissionPaymentServiceImpl implements CommissionPaymentService {
     private final QuotePaymentRepository paymentRepository;
     private final ArtistService artistService;
 
-    // The Payment is created with the first attempt, so Quotes accepted before Quote payments existed need nothing
-    // else. A deactivated Artist's accepted Quote stays payable: it is an existing commitment (amendment §A.4).
+    // Each installment's Payment is created with its first attempt, so Quotes accepted before Quote payments existed
+    // need nothing else. The Commission is AWAITING_PAYMENT twice: before the first installment, and after approval,
+    // when the first is SUCCEEDED and the final one is due. The final payment has no deadline (approved 2 November
+    // 2026). A deactivated Artist's accepted Quote stays payable: it is an existing commitment (amendment §A.4).
     @Override
     public QuotePayment preparePayment(Long userId, Long commissionId, Long quoteId) {
         Commission commission = repository.findWithLockByCommissionId(commissionId)
@@ -59,8 +64,12 @@ public class CommissionPaymentServiceImpl implements CommissionPaymentService {
             throw new AppException(AppErrorMessage.QUOTE_NOT_PAYABLE);
         }
 
-        Payment payment = paymentRepository.findByQuoteIdAndInstallment(quoteId, firstInstallment)
-            .orElseGet(() -> create(quote));
+        Optional<Payment> first = paymentRepository.findByQuoteIdAndInstallment(quoteId, firstInstallment);
+        boolean firstPaid = first.filter(found -> PaymentStatus.SUCCEEDED.name().equals(found.getStatus()))
+            .isPresent();
+        int installment = firstPaid ? finalInstallment : firstInstallment;
+        Payment payment = (firstPaid ? paymentRepository.findByQuoteIdAndInstallment(quoteId, finalInstallment) : first)
+            .orElseGet(() -> create(quote, installment));
 
         if (!PaymentStatus.PENDING.name().equals(payment.getStatus())) {
             throw new AppException(AppErrorMessage.QUOTE_NOT_PAYABLE);
@@ -70,7 +79,7 @@ public class CommissionPaymentServiceImpl implements CommissionPaymentService {
             .withPaymentId(payment.getPaymentId())
             .withCommissionId(commissionId)
             .withQuoteId(quoteId)
-            .withInstallment(firstInstallment)
+            .withInstallment(installment)
             .withAmount(payment.getAmount())
             .build();
     }
@@ -81,8 +90,10 @@ public class CommissionPaymentServiceImpl implements CommissionPaymentService {
         return paymentRepository.findQuoteIdByPaymentId(paymentId).isPresent();
     }
 
-    // §12.6: only a confirmed success of the exact first installment starts the work. Money that arrives when the
-    // Quote can no longer be paid leaves the Commission as it is; the caller records it for reconciliation.
+    // §12.6: only a confirmed success of the exact installment due changes the Commission. The first starts the work;
+    // the final one marks the Quote PAID and completes the Commission (amendment §D.13), and the caller releases the
+    // Quote's proceeds. Money that arrives when the installment can no longer be paid leaves the Commission as it is;
+    // the caller records it for reconciliation.
     @Override
     public QuoteSettlement settlePayment(Long paymentId, BigDecimal amount, OffsetDateTime receivedAt) {
         Long quoteId = paymentRepository.findQuoteIdByPaymentId(paymentId)
@@ -114,15 +125,25 @@ public class CommissionPaymentServiceImpl implements CommissionPaymentService {
         payment.setStatus(PaymentStatus.SUCCEEDED.name());
         payment.setSucceededAt(receivedAt);
         paymentRepository.saveAndFlush(payment);
-        // The Quote stays ACCEPTED: it is PAID only when the final installment is paid too.
+        // The Quote stays ACCEPTED after the first installment: it is PAID only when the final one is paid too.
+        boolean completes = payment.getInstallment() == finalInstallment;
+        CommissionStatus to = completes ? CommissionStatus.COMPLETED : CommissionStatus.IN_PROGRESS;
+
+        if (completes) {
+            quote.setStatus(QuoteStatus.PAID.name());
+            quote.setPaidAt(receivedAt);
+            quoteRepository.saveAndFlush(quote);
+            commission.setCompletedAt(receivedAt);
+        }
+
         String from = commission.getStatus();
-        commission.setStatus(CommissionStatus.IN_PROGRESS.name());
+        commission.setStatus(to.name());
         repository.saveAndFlush(commission);
-        eventRepository.saveAndFlush(new CommissionEvent(commissionId, "PAYMENT_CONFIRMED", from,
-            CommissionStatus.IN_PROGRESS.name(), paymentId, commission.getCustomerId(), null, receivedAt, null));
+        eventRepository.saveAndFlush(new CommissionEvent(commissionId, "PAYMENT_CONFIRMED", from, to.name(),
+            paymentId, commission.getCustomerId(), null, receivedAt, null));
         QuoteSplit split = QuoteSplit.of(quote.getPrice(), quote.getTaxAmount());
-        log.info("[COMMISSION] - ACTION: settlePayment: commissionId: {}: quoteId: {}: outcome: {}: amount: {}",
-            commissionId, quoteId, PaymentSettlement.PAID, amount);
+        log.info("[COMMISSION] - ACTION: settlePayment: commissionId: {}: quoteId: {}: installment: {}: outcome: {}:"
+            + " amount: {}", commissionId, quoteId, payment.getInstallment(), PaymentSettlement.PAID, amount);
 
         return QuoteSettlement.builder()
             .withSettlement(PaymentSettlement.PAID)
@@ -130,22 +151,30 @@ public class CommissionPaymentServiceImpl implements CommissionPaymentService {
             .withCommissionId(commissionId)
             .withQuoteId(quoteId)
             .withArtistId(commission.getArtistId())
-            .withInstallment(firstInstallment)
+            .withInstallment(payment.getInstallment())
             .withAmount(payment.getAmount())
-            .withProceeds(split.getFirstPrice())
-            .withTaxAmount(split.getFirstTax())
+            .withProceeds(completes ? split.getFinalPrice() : split.getFirstPrice())
+            .withTaxAmount(completes ? split.getFinalTax() : split.getFirstTax())
             .withPaidAt(receivedAt)
+            .withCompleted(completes)
             .build();
     }
 
-    private Payment create(CommissionQuote quote) {
+    // A final installment of 0 VND never reaches here: approval completes such a Commission at once.
+    private Payment create(CommissionQuote quote, int installment) {
         QuoteSplit split = QuoteSplit.of(quote.getPrice(), quote.getTaxAmount());
-        Payment payment = new Payment(null, quote.getQuoteId(), split.getFirstAmount(), currency,
-            PaymentStatus.PENDING.name(), null, now(), null);
-        payment.setInstallment(firstInstallment);
+        BigDecimal amount = installment == firstInstallment ? split.getFirstAmount() : split.getFinalAmount();
+
+        if (amount.signum() <= 0) {
+            throw new AppException(AppErrorMessage.QUOTE_NOT_PAYABLE);
+        }
+
+        Payment payment = new Payment(null, quote.getQuoteId(), amount, currency, PaymentStatus.PENDING.name(), null,
+            now(), null);
+        payment.setInstallment(installment);
         Payment saved = paymentRepository.saveAndFlush(payment);
-        log.info("[COMMISSION] - ACTION: preparePayment: quoteId: {}: paymentId: {}: amount: {}", quote.getQuoteId(),
-            saved.getPaymentId(), saved.getAmount());
+        log.info("[COMMISSION] - ACTION: preparePayment: quoteId: {}: installment: {}: paymentId: {}: amount: {}",
+            quote.getQuoteId(), installment, saved.getPaymentId(), saved.getAmount());
 
         return saved;
     }

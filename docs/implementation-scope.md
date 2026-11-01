@@ -97,6 +97,12 @@ returns the Commission to `AWAITING_PAYMENT` for the final 50%; the Customer can
 paid. Work stages are not recorded (rule change of 2 November 2026, amendment §D.13 and §D.15). The final payment,
 completion, Quote releases and the 7-day close belong to F18b; the review preview waits for its format.
 
+F18b increment (priority 3): the final 50% of an approved Commission is paid through the same Quote payment endpoint,
+marks the Quote `PAID`, completes the Commission, unlocks the approved version's files and releases each installment's
+proceeds, following [Commission final payment and completion](commission-completion.md). The 7-day close is removed
+(rule change of 2 November 2026, amendment §D.14): an unpaid approved Commission waits for the Customer. A 0 VND final
+installment completes at approval. Change Quotes, cancellation and refunds (F19/F20) and the license contract come later.
+
 Requirements change recorded 31 October 2026: the site is the storefront of one
 Artist team, with no Platform Fee, held funds released to each Artist's own
 account, a 48-hour post-delivery return window, split Commission payments, and
@@ -213,7 +219,7 @@ from the product by the 31 October amendment, not merely deferred.
 F16–F20 and the Commission-specific extensions to F03, F08, F11, F14 and F21 are
 tertiary work. The 31 October amendment changes this journey substantially:
 sketch stage, two 50% payments per Quote, tracked work stages, progress-based
-refunds, preview-only review, a 7-day final-payment deadline, a portfolio
+refunds, preview-only review, a 7-day final-payment deadline (removed 2 November 2026), a portfolio
 opt-in, and license contracts. Its lifecycle needs schema review before
 implementation. Start this journey after standard orders and basic suspension,
 unless the user explicitly changes priorities. Commissions are not required to

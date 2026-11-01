@@ -19,5 +19,9 @@ public interface ProceedsRepository extends JpaRepository<ArtistProceeds, Long> 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<ArtistProceeds> findWithLockByProceedsId(Long proceedsId);
 
+    // UPDLOCK until commit, taken after the Commission lock.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    List<ArtistProceeds> findWithLockByQuoteIdOrderByInstallmentAsc(Long quoteId);
+
     List<ArtistProceeds> findByArtistIdOrderByProceedsIdDesc(long artistId);
 }

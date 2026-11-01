@@ -118,6 +118,20 @@ public class ProceedsServiceImpl implements ProceedsService {
         return released;
     }
 
+    // Amendment §D.13: the full Quote amount is released when the Commission completes, each installment's proceeds in
+    // their own release. The caller holds the Commission lock and completed the Commission in its transaction;
+    // proceeds already released are skipped, and 0 VND proceeds are settled without a release.
+    @Override
+    public List<Proceeds> releaseQuote(Long quoteId, OffsetDateTime completedAt) {
+        List<Proceeds> released = repository.findWithLockByQuoteIdOrderByInstallmentAsc(quoteId).stream()
+            .filter(entity -> ProceedsStatus.HELD.name().equals(entity.getStatus()))
+            .map(entity -> mapper.toModel(reachMilestone(entity, completedAt)))
+            .toList();
+        log.info("[PROCEEDS] - ACTION: releaseQuote: quoteId: {}: released: {}", quoteId, released.size());
+
+        return released;
+    }
+
     // For a refund decision, which holds the Order and item locks: the proceeds are locked last, as at the window
     // close.
     @Override
@@ -319,6 +333,7 @@ public class ProceedsServiceImpl implements ProceedsService {
             .withSourceId(sourceId)
             .withArtistId(proceeds.getArtistId())
             .withOrderItemId(proceeds.getOrderItemId())
+            .withQuoteId(proceeds.getQuoteId())
             .withAmount(proceeds.getAmount())
             .withOccurredAt(occurredAt)
             .build();

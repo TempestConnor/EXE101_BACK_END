@@ -10,20 +10,25 @@ import com.exe101.commission.model.CommissionStatus;
 import com.exe101.commission.model.DeliverableFile;
 import com.exe101.commission.model.DeliverableSubmission;
 import com.exe101.commission.model.FileUpload;
+import com.exe101.commission.model.QuoteSplit;
+import com.exe101.commission.model.QuoteStatus;
 import com.exe101.commission.model.RevisionRequest;
 import com.exe101.commission.repository.CommissionDeliverableRepository;
 import com.exe101.commission.repository.CommissionEventRepository;
+import com.exe101.commission.repository.CommissionQuoteRepository;
 import com.exe101.commission.repository.CommissionRepository;
 import com.exe101.commission.repository.DeliverableFileRepository;
 import com.exe101.commission.repository.RevisionRequestRepository;
 import com.exe101.common.error.AppErrorMessage;
 import com.exe101.common.error.AppException;
 import com.exe101.entity.CommissionEvent;
+import com.exe101.entity.CommissionQuote;
 import com.exe101.entity.DeliverableFileId;
 import com.exe101.file.model.FileContent;
 import com.exe101.file.model.NewFile;
 import com.exe101.file.model.StoredFileInfo;
 import com.exe101.file.service.FileService;
+import com.exe101.proceeds.service.ProceedsService;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -40,8 +45,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 // The Artist submits versions and the Customer approves or asks for a revision (§22). Every action locks the
 // Commission row (UPDLOCK) first, so a racing approval and revision request have exactly one winner (§31.4, §31.9).
-// Approval returns the Commission to AWAITING_PAYMENT for the final 50%, which comes with F18b; the first
-// installment is already SUCCEEDED, so it cannot be paid again (approved 2 November 2026).
+// Approval returns the Commission to AWAITING_PAYMENT for the final 50%; the first installment is already SUCCEEDED,
+// so it cannot be paid again (approved 2 November 2026). The final payment completes the Commission and unlocks the
+// approved version's files.
 @Slf4j
 @Service
 @Transactional
@@ -55,10 +61,12 @@ public class CommissionDeliveryServiceImpl implements CommissionDeliveryService 
     private final DeliverableFileRepository deliverableFileRepository;
     private final RevisionRequestRepository revisionRepository;
     private final CommissionEventRepository eventRepository;
+    private final CommissionQuoteRepository quoteRepository;
     private final CommissionEntityMapper commissionMapper;
     private final CommissionDeliverableEntityMapper mapper;
     private final ArtistService artistService;
     private final FileService fileService;
+    private final ProceedsService proceedsService;
 
     @Override
     @Transactional(readOnly = true)
@@ -142,16 +150,33 @@ public class CommissionDeliveryServiceImpl implements CommissionDeliveryService 
         return assemble(saved, files, List.of());
     }
 
-    // No Payment is created here: the final 50% is due after approval (amendment §D.13) and comes with F18b.
+    // No Payment is created here: the final 50% is due after approval (amendment §D.13), with no deadline (approved
+    // 2 November 2026). A final installment of 0 VND cannot be paid (Payment.Amount > 0), so approval completes such
+    // a Commission at once: the Quote is PAID and the first installment is released (approved 2 November 2026).
     @Override
     public Commission approve(Long userId, Long commissionId, Long deliverableId) {
         com.exe101.entity.Commission commission = lock(commissionId);
         requireCustomer(userId, commission);
         requireCurrent(commission, deliverableId);
-        changeStatus(commission, CommissionStatus.AWAITING_PAYMENT, "DELIVERABLE_APPROVED", deliverableId, userId,
-            now());
-        log.info("[COMMISSION] - ACTION: approveDeliverable: commissionId: {}: deliverableId: {}", commissionId,
-            deliverableId);
+        CommissionQuote quote = acceptedQuote(commissionId);
+        QuoteSplit split = QuoteSplit.of(quote.getPrice(), quote.getTaxAmount());
+        OffsetDateTime approvedAt = now();
+
+        if (split.getFinalAmount().signum() == 0) {
+            quote.setStatus(QuoteStatus.PAID.name());
+            quote.setPaidAt(approvedAt);
+            quoteRepository.saveAndFlush(quote);
+            commission.setCompletedAt(approvedAt);
+            changeStatus(commission, CommissionStatus.COMPLETED, "DELIVERABLE_APPROVED", deliverableId, userId,
+                approvedAt);
+            proceedsService.releaseQuote(quote.getQuoteId(), approvedAt);
+        } else {
+            changeStatus(commission, CommissionStatus.AWAITING_PAYMENT, "DELIVERABLE_APPROVED", deliverableId, userId,
+                approvedAt);
+        }
+
+        log.info("[COMMISSION] - ACTION: approveDeliverable: commissionId: {}: deliverableId: {}: status: {}",
+            commissionId, deliverableId, commission.getStatus());
 
         return commissionMapper.toModel(commission);
     }
@@ -174,24 +199,42 @@ public class CommissionDeliveryServiceImpl implements CommissionDeliveryService 
         return mapper.toModel(saved);
     }
 
-    // The Customer reviews without downloading (amendment §D.13); the files unlock with the final payment (F18b).
+    // The Customer reviews without downloading (amendment §D.13). The final payment completes the Commission and
+    // unlocks the approved version, the latest one; earlier versions stay locked for the Customer (approved
+    // 2 November 2026).
     @Override
     public FileContent readFile(Long userId, Long commissionId, Long deliverableId, Long fileId) {
         com.exe101.entity.Commission commission = repository.findById(commissionId)
             .orElseThrow(() -> new AppException(AppErrorMessage.COMMISSION_NOT_FOUND));
         boolean artist = isArtist(userId, commission);
-        deliverableRepository.findByDeliverableIdAndCommissionId(deliverableId, commissionId)
+        com.exe101.entity.CommissionDeliverable deliverable = deliverableRepository
+            .findByDeliverableIdAndCommissionId(deliverableId, commissionId)
             .orElseThrow(() -> new AppException(AppErrorMessage.DELIVERABLE_NOT_FOUND));
 
         if (!deliverableFileRepository.existsById(new DeliverableFileId(deliverableId, fileId))) {
             throw new AppException(AppErrorMessage.DELIVERABLE_FILE_NOT_FOUND);
         }
 
-        if (!artist) {
+        boolean unlocked = CommissionStatus.COMPLETED.name().equals(commission.getStatus())
+            && deliverable.getVersionNo() == deliverableRepository.findLastVersionNo(commissionId);
+
+        if (!artist && !unlocked) {
             throw new AppException(AppErrorMessage.DELIVERABLE_LOCKED);
         }
 
         return fileService.read(fileId);
+    }
+
+    // A Commission under review was paid on its one accepted Quote; change Quotes do not exist yet.
+    private CommissionQuote acceptedQuote(Long commissionId) {
+        List<CommissionQuote> accepted = quoteRepository.findByCommissionIdAndStatus(commissionId,
+            QuoteStatus.ACCEPTED.name());
+
+        if (accepted.size() != 1) {
+            throw new IllegalStateException("Expected one accepted Quote: " + commissionId);
+        }
+
+        return accepted.getFirst();
     }
 
     private com.exe101.entity.Commission lock(Long commissionId) {
