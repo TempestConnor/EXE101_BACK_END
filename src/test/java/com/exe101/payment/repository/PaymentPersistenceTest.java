@@ -1,13 +1,21 @@
 package com.exe101.payment.repository;
 
+import com.exe101.artist.repository.ArtistRepository;
+import com.exe101.artwork.repository.ArtworkRepository;
 import com.exe101.customer.model.CustomerRegistration;
 import com.exe101.customer.service.CustomerService;
+import com.exe101.entity.ArtistProfile;
+import com.exe101.entity.Artwork;
+import com.exe101.entity.Listing;
+import com.exe101.entity.StaffAccount;
+import com.exe101.listing.repository.ListingRepository;
 import com.exe101.order.service.OrderService;
 import com.exe101.payment.config.VnpayProperties;
 import com.exe101.payment.model.EventOutcome;
 import com.exe101.payment.model.NotificationResult;
 import com.exe101.payment.model.VnpayReply;
 import com.exe101.payment.service.PaymentService;
+import com.exe101.staff.repository.StaffRepository;
 import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -55,6 +63,7 @@ import static org.mockito.Mockito.reset;
 @SpringBootTest(properties = "app.orders.expiry-interval=PT1H")
 @EnabledIfEnvironmentVariable(named = "TEST_DB_URL", matches = ".+")
 class PaymentPersistenceTest {
+    private static String printSpecifications = "Fine-art print, A4 (210 x 297 mm), 230 gsm matte paper";
     private static long blockedMillis = 500;
     private static long waitSeconds = 30;
     @Autowired
@@ -63,6 +72,14 @@ class PaymentPersistenceTest {
     private OrderService orderService;
     @Autowired
     private CustomerService customerService;
+    @Autowired
+    private ArtistRepository artistRepository;
+    @Autowired
+    private ArtworkRepository artworkRepository;
+    @Autowired
+    private ListingRepository listingRepository;
+    @Autowired
+    private StaffRepository staffRepository;
     @Autowired
     private VnpayProperties vnpay;
     @MockitoSpyBean
@@ -307,6 +324,7 @@ class PaymentPersistenceTest {
                 + " VALUES (?, 'PENDING_PAYMENT', ?, ?, 270005, 30000, 27001)",
             Long.class, buyerId, now(), now().plusMinutes(30));
         jdbc.update("INSERT INTO dbo.Payment (OrderId, Amount) VALUES (?, 327006)", orderId);
+        printItem(orderId, "270005", "27001");
         var shortRef = attemptRef(service.start(buyerId, orderId, "203.0.113.7").getAttemptId());
         var start = service.start(buyerId, orderId, "203.0.113.7");
         var exactRef = attemptRef(start.getAttemptId());
@@ -337,6 +355,7 @@ class PaymentPersistenceTest {
             Long.class, buyerId, now().plusMinutes(createdMinutes),
             now().plusMinutes(expiresMinutes).plusSeconds(1), new BigDecimal(amount));
         jdbc.update("INSERT INTO dbo.Payment (OrderId, Amount) VALUES (?, ?)", orderId, new BigDecimal(amount));
+        printItem(orderId, amount, "0");
 
         return orderId;
     }
@@ -347,8 +366,41 @@ class PaymentPersistenceTest {
                 + " ExpiresAt, ItemsSubtotal) OUTPUT INSERTED.OrderId VALUES (?, 'PENDING_PAYMENT', ?, ?, ?)",
             Long.class, buyerId, now(), now().plusSeconds(expiresSeconds), new BigDecimal(amount));
         jdbc.update("INSERT INTO dbo.Payment (OrderId, Amount) VALUES (?, ?)", orderId, new BigDecimal(amount));
+        printItem(orderId, amount, "0");
 
         return orderId;
+    }
+
+    // F10: an Order has at least one item, and its subtotal and tax come from its items. A paid Order without them
+    // owes its money to nobody, and the ledger refuses to book it. One print of another Customer's Artist Profile:
+    // manufacturing 1 000, markup the rest of the subtotal.
+    private void printItem(long orderId, String subtotal, String tax) {
+        var price = new BigDecimal(subtotal);
+        var cost = new BigDecimal("1000");
+        var markup = price.subtract(cost);
+        var sellerId = customerService.register(new CustomerRegistration(
+            "f11-seller-" + UUID.randomUUID() + "@example.invalid", "long-password", "Seller")).getUserId();
+        var artist = artistRepository.saveAndFlush(new ArtistProfile(sellerId, "Painter", "ACTIVE", false,
+            admin().getStaffId(), now(), null));
+        var artwork = artworkRepository.saveAndFlush(new Artwork(artist.getArtistId(), "Sunset", null, "2D",
+            "PUBLISHED", now(), now(), null));
+        var listing = listingRepository.saveAndFlush(new Listing(artwork.getArtworkId(), "PHYSICAL",
+            "Sunset A4 print", null, "PUBLISHED", "VND", price, cost, markup, printSpecifications, false, now(), now(),
+            null));
+        jdbc.update("INSERT INTO dbo.OrderItem (OrderId, ListingId, ListingType, ArtworkId, ArtistId, ArtworkTitle,"
+                + " ListingName, ArtistName, Specifications, Quantity, UnitPrice, ManufacturingCostPerUnit,"
+                + " MarkupPerUnit, FeeRate, FeeAmount, ArtistProceeds, TaxAmount) VALUES (?, ?, 'PHYSICAL', ?, ?,"
+                + " N'Sunset', N'Sunset A4 print', N'Painter', ?, 1, ?, ?, ?, 0, 0, ?, ?)",
+            orderId, listing.getListingId(), artwork.getArtworkId(), artist.getArtistId(), printSpecifications,
+            price, cost, markup, markup, new BigDecimal(tax));
+    }
+
+    private StaffAccount admin() {
+        return staffRepository.findAll().stream()
+            .filter(staff -> "ADMIN".equals(staff.getRole()) && staff.isIsActive())
+            .findFirst()
+            .orElseGet(() -> staffRepository.saveAndFlush(new StaffAccount("f11-test-" + UUID.randomUUID(),
+                "unused".getBytes(StandardCharsets.UTF_8), "ADMIN", true, now())));
     }
 
     // For an Order already past its window, where the API would refuse to start an attempt.

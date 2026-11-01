@@ -19,6 +19,11 @@ shared code that affects these paths and Commission financial flows when in scop
 Its implementation, testing, and completion requirements are mandatory, including
 for the controlled class/demo release.
 
+The demo scope never lowers the bar on money. Treat every decision that touches money
+(design, provider choice, where funds are held, payouts, refunds, tests) as if real
+customers' and Artists' money were at stake. Never call a financial weakness acceptable
+because the project is a demo: name it as a weakness, and say what closing it would take.
+
 ## Stack
 
 Target conventions: Java 25 · Spring Boot 4.x · Maven or Gradle · Spring Data JPA · Lombok · JUnit 6 + Mockito + AssertJ.

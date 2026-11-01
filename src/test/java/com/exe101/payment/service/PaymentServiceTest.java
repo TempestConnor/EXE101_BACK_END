@@ -12,6 +12,7 @@ import com.exe101.entity.Payment;
 import com.exe101.entity.PaymentAttempt;
 import com.exe101.entity.ProviderEvent;
 import com.exe101.fulfillment.service.FulfillmentService;
+import com.exe101.ledger.service.LedgerService;
 import com.exe101.listing.service.ListingService;
 import com.exe101.order.config.OrderProperties;
 import com.exe101.order.mapper.OrderEntityMapperImpl;
@@ -119,6 +120,8 @@ class PaymentServiceTest {
     private FulfillmentService fulfillmentService;
     @Mock
     private ProceedsService proceedsService;
+    @Mock
+    private LedgerService ledgerService;
     private PaymentServiceImpl service;
     private MarketplaceOrder order;
     private Payment payment;
@@ -135,7 +138,7 @@ class PaymentServiceTest {
         var gateway = new VnpayGateway(new VnpayProperties(tmnCode, hashSecret, URI.create(payUrl),
             URI.create("http://localhost:3000/payment/return")));
         service = new PaymentServiceImpl(attemptRepository, eventRepository, new PaymentEntityMapperImpl(),
-            orderService, gateway, entitlementService, fulfillmentService, proceedsService);
+            orderService, gateway, entitlementService, fulfillmentService, proceedsService, ledgerService);
         order = order("PENDING_PAYMENT", now().plusMinutes(20));
         payment = payment("PENDING");
         savedAttempts = new ArrayList<>();

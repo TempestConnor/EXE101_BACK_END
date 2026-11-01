@@ -2,13 +2,14 @@ package com.exe101.payment.service;
 
 import com.exe101.entitlement.service.EntitlementService;
 import com.exe101.entity.PaymentAttempt;
+import com.exe101.entity.ProviderEvent;
 import com.exe101.fulfillment.service.FulfillmentService;
+import com.exe101.ledger.service.LedgerService;
 import com.exe101.order.model.Order;
 import com.exe101.order.model.PaymentSettlement;
 import com.exe101.order.model.PaymentTarget;
 import com.exe101.order.service.OrderService;
 import com.exe101.payment.mapper.PaymentEntityMapper;
-import com.exe101.proceeds.service.ProceedsService;
 import com.exe101.payment.model.Attempt;
 import com.exe101.payment.model.AttemptStatus;
 import com.exe101.payment.model.EventOutcome;
@@ -19,6 +20,7 @@ import com.exe101.payment.model.ProviderNotification;
 import com.exe101.payment.model.VnpayReply;
 import com.exe101.payment.repository.PaymentAttemptRepository;
 import com.exe101.payment.repository.ProviderEventRepository;
+import com.exe101.proceeds.service.ProceedsService;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Map;
@@ -44,6 +46,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final EntitlementService entitlementService;
     private final FulfillmentService fulfillmentService;
     private final ProceedsService proceedsService;
+    private final LedgerService ledgerService;
 
     // Every call is a new attempt (§12.4); only a provider-confirmed success has any effect on the Order.
     @Override
@@ -136,6 +139,7 @@ public class PaymentServiceImpl implements PaymentService {
             Order order = orderService.getLockedByPayment(attempt.getPaymentId());
             entitlementService.grantDigital(order);
             fulfillmentService.start(order);
+            ledgerService.recordPayment(order);
             proceedsService.recordPaid(order);
         }
 
@@ -161,7 +165,13 @@ public class PaymentServiceImpl implements PaymentService {
             .withProcessedAt(receivedAt)
             .withOutcome(outcome)
             .build();
-        eventRepository.saveAndFlush(mapper.toEntity(event));
+        ProviderEvent saved = eventRepository.saveAndFlush(mapper.toEntity(event));
+
+        // Every exception is a confirmed success: real money that applies to no Order, kept apart in the ledger.
+        if (outcome == EventOutcome.EXCEPTION) {
+            ledgerService.recordUnapplied(saved.getProviderEventId(), notification.getAmount(), receivedAt);
+        }
+
         log.info("[PAYMENT] - ACTION: notification: attemptId: {}: outcome: {}: reply: {}", attemptId, outcome,
             reply.getCode());
 

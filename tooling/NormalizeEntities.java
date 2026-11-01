@@ -61,8 +61,7 @@ public class NormalizeEntities {
                         }
                         // Computed columns are written by SQL Server and read back after insert.
                         if (rows.getBoolean("is_computed")) {
-                            extra += "@org.hibernate.annotations.Generated(event=org.hibernate.generator.EventType.INSERT)
-    ";
+                            extra += "@org.hibernate.annotations.Generated(event=org.hibernate.generator.EventType.INSERT)\n    ";
                             options += ", insertable=false, updatable=false";
                         }
                         String replacement = extra + "@Column(name=\"" + column + "\"" + options + ", columnDefinition=\"" + definition + "\")";

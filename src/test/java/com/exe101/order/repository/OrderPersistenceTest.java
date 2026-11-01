@@ -426,10 +426,22 @@ class OrderPersistenceTest {
         var orderId = jdbc.queryForObject("INSERT INTO dbo.MarketplaceOrder (CustomerId, Status, CreatedAt,"
                 + " ExpiresAt, PaidAt, ItemsSubtotal) OUTPUT INSERTED.OrderId VALUES (?, 'PAID', ?, ?, ?, 50000)",
             Long.class, buyerId, now().minusMinutes(120), now().minusMinutes(60), now().minusMinutes(90));
-        jdbc.update("INSERT INTO dbo.Payment (OrderId, Amount, Status, SucceededAt) VALUES (?, 50000,"
-            + " 'SUCCEEDED', ?)", orderId, now().minusMinutes(90));
+        var paymentId = jdbc.queryForObject("INSERT INTO dbo.Payment (OrderId, Amount, Status, SucceededAt)"
+                + " OUTPUT INSERTED.PaymentId VALUES (?, 50000, 'SUCCEEDED', ?)",
+            Long.class, orderId, now().minusMinutes(90));
+        bookPayment(paymentId);
 
         return orderId;
+    }
+
+    // A succeeded payment always has its ledger receipt, or reconciliation pauses payouts for every later test. This
+    // Order has no items, so the receipt balances against SHIPPING alone.
+    private void bookPayment(long paymentId) {
+        var transactionId = jdbc.queryForObject("INSERT INTO dbo.LedgerTransaction (Type, SourceType, SourceId,"
+                + " OccurredAt) OUTPUT INSERTED.TransactionId VALUES ('PAYMENT_RECEIVED', 'PAYMENT', ?, ?)",
+            Long.class, paymentId, now().minusMinutes(90));
+        jdbc.update("INSERT INTO dbo.LedgerEntry (TransactionId, Account, Amount) VALUES (?, 'CASH', 50000),"
+            + " (?, 'SHIPPING', -50000)", transactionId, transactionId);
     }
 
     private String orderStatus(long orderId) {

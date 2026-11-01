@@ -58,8 +58,10 @@ release of physical proceeds to F14.
 
 F14 increment: one `HELD` proceeds record per paid Order Item from its snapshot, released on payment (digital) or at
 the return-window close (physical) as one Admin-recorded release per item, with 0 VND proceeds settled without a
-release, follow [Artist proceeds and releases](artist-proceeds.md). `VOID` on refund belongs to F15, Quote proceeds
-to priority 3.
+release, follow [Artist proceeds and releases](artist-proceeds.md). Every money event is also written to an
+append-only double-entry ledger, and a reconciliation mismatch blocks releases; the money rules and the class
+release's declared limitations are amendment F of the business rules. `VOID` on refund belongs to F15, Quote
+proceeds to priority 3.
 
 Requirements change recorded 31 October 2026: the site is the storefront of one
 Artist team, with no Platform Fee, held funds released to each Artist's own

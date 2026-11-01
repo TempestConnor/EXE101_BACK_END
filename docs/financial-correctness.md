@@ -3,7 +3,10 @@
 Treat changes affecting prices, checkout totals, payments, refunds, Commissions,
 Artist proceeds, payouts, and payment-triggered entitlements as high-risk changes.
 This includes shared code that affects these paths. The controlled class/demo
-scope does not waive these requirements.
+scope does not waive these requirements, and it never makes a financial weakness
+acceptable: name the weakness and what closing it would take, as
+[amendment F](Marketplace_Business_Rules_Final.md#amendment-f--money-handling-1-november-2026)
+of the business rules does for the class release.
 
 Follow [repository guidance](repository-guidance.md) for requirements, database
 constraints, conflicts, and validation reporting, and [testing conventions](testing.md)
@@ -40,6 +43,12 @@ features or authorize unrelated schema changes.
   Do not silently overwrite or delete financial evidence. Commit required Admin
   audit records in the same database transaction as the associated local action,
   as specified in implementation scope.
+- Record every new money event in the ledger, in the same database transaction as
+  the event, and extend reconciliation so the event's records and ledger
+  transactions are checked against each other ([Artist proceeds](artist-proceeds.md#ledger)).
+  A path that moves or reassigns money without a ledger transaction is incomplete.
+- Persistence-test fixtures must leave the shared test database reconcilable,
+  because any mismatch blocks Artist releases.
 
 ## Required verification
 

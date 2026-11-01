@@ -85,6 +85,8 @@ public enum AppErrorMessage {
     RELEASE_REFERENCE_INVALID(HttpStatus.BAD_REQUEST,
         "A transfer reference is required when recording PAID and accepted only then."),
     RELEASE_REFERENCE_IN_USE(HttpStatus.CONFLICT, "This transfer reference is already recorded for another release."),
+    RECONCILIATION_MISMATCH(HttpStatus.CONFLICT,
+        "Releases are paused: the ledger and the records disagree. See GET /admin/finance/reconciliation."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "The request could not be completed.");
 
     private final HttpStatus status;

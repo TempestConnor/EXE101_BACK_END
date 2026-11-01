@@ -10,6 +10,8 @@ import com.exe101.common.persistence.DatabaseErrors;
 import com.exe101.entity.ArtistProceeds;
 import com.exe101.entity.Payout;
 import com.exe101.entity.PayoutLine;
+import com.exe101.ledger.model.ArtistMovement;
+import com.exe101.ledger.service.LedgerService;
 import com.exe101.listing.model.ListingType;
 import com.exe101.order.model.Order;
 import com.exe101.order.model.OrderLine;
@@ -55,6 +57,7 @@ public class ProceedsServiceImpl implements ProceedsService {
     private final ProceedsEntityMapper mapper;
     private final ArtistService artistService;
     private final AuditService auditService;
+    private final LedgerService ledgerService;
 
     // §14.8, Add.3: each paid item holds its snapshotted proceeds for its own Artist, never recalculated (§7.13). A
     // direct digital item reaches its milestone with the payment (amendment §B.7). Runs in the payment-success
@@ -88,9 +91,11 @@ public class ProceedsServiceImpl implements ProceedsService {
         return released;
     }
 
-    // A failed release leaves its proceeds ELIGIBLE; the Admin starts a new one for them.
+    // A failed release leaves its proceeds ELIGIBLE; the Admin starts a new one for them, but only while the ledger
+    // and the records agree.
     @Override
     public Release release(Long staffId, Long proceedsId) {
+        ledgerService.requireReconciled();
         ArtistProceeds entity = repository.findWithLockByProceedsId(proceedsId)
             .orElseThrow(() -> new AppException(AppErrorMessage.PROCEEDS_NOT_FOUND));
 
@@ -107,8 +112,10 @@ public class ProceedsServiceImpl implements ProceedsService {
         return mapper.toModel(payout, proceedsId);
     }
 
-    // The reference check comes first, so a bad request locks nothing. Then the release is locked before its
-    // proceeds, so two outcomes for one release wait for each other and the second finds it settled.
+    // The reference check comes first, so a bad request locks nothing. Money may start leaving (PROCESSING, PAID)
+    // only while the ledger and the records agree; FAILED keeps the money in and is always allowed. Then the
+    // release is locked before its proceeds, so two outcomes for one release wait for each other and the second
+    // finds it settled.
     @Override
     public Release recordOutcome(Long staffId, Long payoutId, ReleaseOutcome outcome) {
         ReleaseStatus target = outcome.getStatus();
@@ -116,6 +123,10 @@ public class ProceedsServiceImpl implements ProceedsService {
 
         if ((target == ReleaseStatus.PAID) != (reference != null)) {
             throw new AppException(AppErrorMessage.RELEASE_REFERENCE_INVALID);
+        }
+
+        if (target != ReleaseStatus.FAILED) {
+            ledgerService.requireReconciled();
         }
 
         Payout payout = releaseRepository.findWithLockByPayoutId(payoutId)
@@ -154,6 +165,15 @@ public class ProceedsServiceImpl implements ProceedsService {
 
         Payout saved = saveRelease(payout);
         repository.saveAndFlush(proceeds);
+
+        if (target == ReleaseStatus.PAID) {
+            ledgerService.recordReleasePaid(movement(payoutId, proceeds, changedAt));
+        }
+
+        if (target == ReleaseStatus.FAILED) {
+            ledgerService.recordReleaseFailed(movement(payoutId, proceeds, changedAt));
+        }
+
         audit(staffId, releaseOutcomeAction, payoutId, blankToNull(outcome.getReason()),
             "from=" + current + ";to=" + target + ";proceedsId=" + proceeds.getProceedsId()
                 + (reference == null ? "" : ";transferReference=" + reference));
@@ -221,6 +241,7 @@ public class ProceedsServiceImpl implements ProceedsService {
         }
 
         entity.setStatus(ProceedsStatus.ELIGIBLE.name());
+        ledgerService.recordProceedsReleased(movement(entity.getProceedsId(), entity, reachedAt));
         reserve(entity, reachedAt);
 
         return entity;
@@ -239,8 +260,19 @@ public class ProceedsServiceImpl implements ProceedsService {
             entity.getAmount()));
         entity.setStatus(ProceedsStatus.RESERVED.name());
         repository.saveAndFlush(entity);
+        ledgerService.recordReleaseCreated(movement(payout.getPayoutId(), entity, createdAt));
 
         return payout;
+    }
+
+    private ArtistMovement movement(Long sourceId, ArtistProceeds proceeds, OffsetDateTime occurredAt) {
+        return ArtistMovement.builder()
+            .withSourceId(sourceId)
+            .withArtistId(proceeds.getArtistId())
+            .withOrderItemId(proceeds.getOrderItemId())
+            .withAmount(proceeds.getAmount())
+            .withOccurredAt(occurredAt)
+            .build();
     }
 
     private Payout saveRelease(Payout payout) {

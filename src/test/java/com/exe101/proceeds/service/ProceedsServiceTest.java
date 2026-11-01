@@ -8,6 +8,7 @@ import com.exe101.common.error.AppException;
 import com.exe101.entity.ArtistProceeds;
 import com.exe101.entity.Payout;
 import com.exe101.entity.PayoutLine;
+import com.exe101.ledger.service.LedgerService;
 import com.exe101.listing.model.ListingType;
 import com.exe101.order.model.Order;
 import com.exe101.order.model.OrderLine;
@@ -67,6 +68,8 @@ class ProceedsServiceTest {
     private ArtistService artistService;
     @Mock
     private AuditService auditService;
+    @Mock
+    private LedgerService ledgerService;
     private ProceedsServiceImpl service;
     private List<ArtistProceeds> savedProceeds;
     private List<Payout> savedReleases;
@@ -75,7 +78,7 @@ class ProceedsServiceTest {
     @BeforeEach
     void setUp() {
         service = new ProceedsServiceImpl(repository, releaseRepository, lineRepository,
-            new ProceedsEntityMapperImpl(), artistService, auditService);
+            new ProceedsEntityMapperImpl(), artistService, auditService, ledgerService);
         savedProceeds = new ArrayList<>();
         savedReleases = new ArrayList<>();
         savedLines = new ArrayList<>();

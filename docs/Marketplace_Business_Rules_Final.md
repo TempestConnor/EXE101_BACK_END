@@ -65,7 +65,28 @@ It incorporates the customer-facing policy *Chính sách Nền tảng Commission
 - **Commission payments:** rounding for percentage refunds; how change Quotes are paid (in full or split) and whether they count toward the refund base; whether the refund percentages apply when the Artist cancels.
 - **Physical returns:** the return-shipping procedure; whether 48 hours satisfies Luật 122/2025 Đ.16.2.d and consumer-protection law (Luật 19/2023/QH15, not yet reviewed).
 - **Previews and contracts:** the review preview format; contract fields (term, exclusivity, territory, derivative works, liability, signature method).
-- **Operations:** the timing of release transfers after a milestone; the payment provider and how held funds are held.
+- **Operations:** settled for the class release by amendment F below (VNPay; a release is created at each milestone and transferred by the Admin). How held funds are held at a real launch still needs a registered business and its account (F.2).
+
+## Amendment F — Money handling (1 November 2026)
+
+The demo scope never lowers these rules. Where the class release cannot meet one, the gap is declared in rule 10, not treated as acceptable. Implementation: [Artist proceeds, releases and the ledger](artist-proceeds.md).
+
+1. **The system records money; it never holds or moves it.** Payments are collected by the payment provider (VNPay). Every amount the system shows is a record of money held elsewhere.
+2. **One holding account.** At a real launch, customer payments settle into the bank account of a registered business, and releases to Artists are paid from it. The class release uses the VNPay sandbox, so no real money is held anywhere (rule 10).
+3. **Only provider confirmation counts for payments.** A payment changes status only on a provider notification with a valid signature, matching amount and known attempt, never on a client claim or a timeout (F11).
+4. **Every money event is recorded once.** Each payment, exception payment, release and release outcome carries a unique reference, and the database refuses to record the same event twice.
+5. **Append-only ledger.** Every money event writes a double-entry ledger transaction, in the same database transaction as the event. Its lines add up to 0, and no line is ever changed or deleted; corrections are new transactions.
+6. **Reconciliation.** The ledger is checked against the payment, proceeds and release records: every transaction balances, every record has its ledger transaction and no ledger transaction lacks its record, each item's Artist balances match its proceeds status, and each payment's cash equals its amount. While any check fails, no release can be started or confirmed as sent (`PROCESSING` or `PAID`).
+7. **Money is only released after refunds can no longer reach it.** Each item's proceeds are released only after every refund window for it has closed (amendment §B.7–8).
+8. **Manual money actions need a second person.** A money action the provider does not confirm, such as recording a release as paid, must be confirmed by a second Admin.
+9. **Limits.** Releases have a maximum amount per release and per day, and can all be paused at once.
+10. **Declared limitations of the class release.** Each is a weakness, with what closing it would take:
+    - **No real money moves.** VNPay's sandbox uses test money and settles nowhere. Closing it: a registered business with a production VNPay merchant contract.
+    - **Artist releases are transferred by hand.** No payout provider available to individuals offers a payout API with a sandbox, so the Admin transfers each release outside the system and records it. Closing it: a provider or bank transfer API under a registered business, or payOS once verified.
+    - **The ledger's cash is not compared with a bank statement**, because the sandbox has no balance. Closing it: compare `CASH` with the holding account's statement daily.
+    - **Rule 8 is not yet implemented:** one Admin records a release outcome alone.
+    - **Rule 9 is not yet implemented:** there are no release limits or pause switch, apart from the reconciliation block of rule 6.
+    - **Manufacturer, shipping and tax amounts are recorded as owed but not paid out,** because those flows are outside the system.
 
 ## 1. Users, Customers and Staff
 

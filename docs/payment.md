@@ -73,4 +73,5 @@ notifications locally; no test calls VNPay.
 - The VNPay contract was implemented from VNPay's published 2.1.0 integration guide; it has not yet been exercised
   against the sandbox, which needs the merchant's sandbox credentials and a reachable IPN URL.
 - The VNPay transaction query/refund APIs are not used; reconciliation of exceptions is manual.
-- The exception reason and the amount received are only in the application log (B2).
+- The exception reason is only in the application log (B2). The amount received is recorded in the ledger's
+  `UNAPPLIED` account, one transaction per exception event ([Artist proceeds](artist-proceeds.md#ledger)).
