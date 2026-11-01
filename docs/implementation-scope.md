@@ -79,6 +79,12 @@ public-display choice (migration `0004`), protected reference files, a participa
 edited, and the Artist's commission settings, follow [Commission requests](commission-requests.md). Quotes, the
 sketch stage, payments and the license contract belong to F17 onwards.
 
+F17 increment (priority 3): the commissioned Artist offers one Quote at a time (initial price whole VND above 0, tax at
+the checkout rate fixed at the offer), the Customer accepts or declines it, the Artist withdraws it or declines the
+request, and acceptance writes the zero-fee snapshot and awaits the first 50% payment, following [Commission
+Quotes](commission-quotes.md). The first payment now comes before the sketch (amendment §D.12, changed 2 November
+2026). Quote payments, change Quotes and the license contract belong to F17b.
+
 Requirements change recorded 31 October 2026: the site is the storefront of one
 Artist team, with no Platform Fee, held funds released to each Artist's own
 account, a 48-hour post-delivery return window, split Commission payments, and

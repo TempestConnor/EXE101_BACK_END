@@ -29,10 +29,10 @@ cancellation and disputes belong to F17–F20.
   more later (`POST /commissions/{id}/attachments`). Attachments are not linked to a message (the schema has no
   `MessageId`). Files are checked before anything is locked or written.
 - **Duplicate submission (Q18):** no idempotency key. A Customer may have several open requests to the same Artist;
-  a duplicate request moves no money, and the Artist can decline it (F17).
+  a duplicate request moves no money, and the Artist can decline it ([Commission Quotes](commission-quotes.md)).
 - **Pending requests when an Artist is deactivated (Q05, F16 part):** deactivation leaves existing `REQUESTED`
   Commissions and their threads as they are (§17.9: nothing ends automatically). A deactivated Artist keeps reading
-  and messaging. Whether a deactivated Artist may issue or accept a Quote is decided in F17.
+  and messaging. Quotes by a deactivated Artist are decided in [Commission Quotes](commission-quotes.md).
 - **Access (§27.6):** only the Customer and the commissioned Artist can read a Commission, its messages and its
   files. Anyone else gets `404 COMMISSION_NOT_FOUND`, like Orders. Admin access comes with disputes (F19).
 - **Messages (§18):** append-only. There is no edit or delete API (`405`), and `TR_Message_Immutable` rejects

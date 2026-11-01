@@ -38,9 +38,9 @@ It incorporates the customer-facing policy *Chính sách Nền tảng Commission
 ### D. Commissions
 
 11. **Addressed to an individual member**, as in §17. The request records the Customer's choice whether the Artist may publicly display the finished work (D3, D20). If not, Commission files are visible only to the participants and the Admin.
-12. **Sketch stage before payment.** After a Quote is accepted, the Artist works on a sketch; the Customer may request unlimited sketch revisions. No payment is due before the sketch is approved. Either party may cancel before the first payment without a refund arising (§20.5).
+12. **Payment before the sketch** (changed 2 November 2026; the Policy said no payment was due before sketch approval and must be changed to match). After a Quote is accepted, the first payment is due; the Artist starts the sketch only after it is confirmed. The sketch is the first part of the paid work, and the Customer may request unlimited sketch revisions. Either party may cancel before the first payment without a refund arising (§20.5). Implementation: [Commission Quotes](commission-quotes.md).
 13. **Two payments per Quote (D5, D18).** Replacing full payment up front (§12.2–3 for Commissions; §20.1–2):
-    - **First payment:** 50% of the Quote price, due after sketch approval. Work continues only after it is confirmed. It is held.
+    - **First payment:** 50% of the Quote price, due after the Quote is accepted (rule 12). Work, starting with the sketch, begins only after it is confirmed. It is held.
     - **Work stages:** lineart, colouring and render are tracked, because refunds depend on them.
     - **Review:** the Artist submits the final work; the Customer reviews it through a protected preview (format undecided) and cannot download it. Revisions remain unlimited (§22.8).
     - **Final payment:** the remaining 50% is due after the Customer approves. When it is confirmed, the files are unlocked, the Commission becomes `COMPLETED`, and the full amount is released to the Artist.
@@ -50,7 +50,7 @@ It incorporates the customer-facing policy *Chính sách Nền tảng Commission
     | Stage at cancellation | Refund |
     | --- | --- |
     | Before the first payment | none arises |
-    | Paid, work not started | 100% |
+    | Paid, work not started (including the sketch) | 100% |
     | Lineart | 70% |
     | Colouring | 30% |
     | Render started or later | 0% |
