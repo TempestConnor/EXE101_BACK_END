@@ -9,5 +9,6 @@ public enum LedgerAccount {
     MANUFACTURER_PAYABLE,
     SHIPPING,
     TAX_PAYABLE,
-    UNAPPLIED
+    UNAPPLIED,
+    REFUND_PAYABLE
 }

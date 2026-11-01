@@ -1,6 +1,6 @@
 package com.exe101.fulfillment.model;
 
-// FAILED and CANCELLED are set only by an approved refund (F15; approved 1 November 2026).
+// CANCELLED is set only by an approved refund (F15); FAILED is unused (approved 1 November 2026).
 public enum FulfillmentStatus {
     PENDING,
     IN_PRODUCTION,

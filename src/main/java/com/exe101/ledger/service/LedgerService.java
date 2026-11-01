@@ -2,6 +2,7 @@ package com.exe101.ledger.service;
 
 import com.exe101.ledger.model.ArtistMovement;
 import com.exe101.ledger.model.Reconciliation;
+import com.exe101.ledger.model.RefundMovement;
 import com.exe101.order.model.Order;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -18,6 +19,10 @@ public interface LedgerService {
     void recordReleasePaid(ArtistMovement movement);
 
     void recordReleaseFailed(ArtistMovement movement);
+
+    void recordRefundApproved(RefundMovement movement);
+
+    void recordRefundPaid(RefundMovement movement);
 
     Reconciliation reconcile();
 

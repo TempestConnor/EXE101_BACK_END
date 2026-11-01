@@ -91,6 +91,28 @@ public class ProceedsServiceImpl implements ProceedsService {
         return released;
     }
 
+    // For a refund decision, which holds the Order and item locks: the proceeds are locked last, as at the window
+    // close.
+    @Override
+    public Optional<Proceeds> findLockedByOrderItem(Long orderItemId) {
+        return repository.findWithLockByOrderItemId(orderItemId).map(mapper::toModel);
+    }
+
+    // Amendment §B.8: a refund takes back proceeds only while they are still held. The caller has checked that under
+    // the same locks; the ledger reversal is part of the refund's own posting.
+    @Override
+    public Proceeds voidHeld(Long orderItemId) {
+        ArtistProceeds entity = repository.findWithLockByOrderItemId(orderItemId)
+            .filter(found -> ProceedsStatus.HELD.name().equals(found.getStatus()))
+            .orElseThrow(() -> new IllegalStateException("No held proceeds to void: " + orderItemId));
+        entity.setStatus(ProceedsStatus.VOID.name());
+        Proceeds voided = mapper.toModel(repository.saveAndFlush(entity));
+        log.info("[PROCEEDS] - ACTION: voidHeld: orderItemId: {}: proceedsId: {}", orderItemId,
+            voided.getProceedsId());
+
+        return voided;
+    }
+
     // A failed release leaves its proceeds ELIGIBLE; the Admin starts a new one for them, but only while the ledger
     // and the records agree.
     @Override

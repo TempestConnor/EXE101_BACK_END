@@ -11,5 +11,7 @@ public interface EntitlementService {
 
     Optional<Entitlement> grantIncluded(Order order, Long orderItemId);
 
+    boolean isGranted(Long orderItemId);
+
     List<Purchase> listOwn(Long userId);
 }

@@ -13,6 +13,10 @@ public interface ProceedsService {
 
     Optional<Proceeds> releasePhysical(Long orderItemId);
 
+    Optional<Proceeds> findLockedByOrderItem(Long orderItemId);
+
+    Proceeds voidHeld(Long orderItemId);
+
     Release release(Long staffId, Long proceedsId);
 
     Release recordOutcome(Long staffId, Long payoutId, ReleaseOutcome outcome);

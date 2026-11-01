@@ -86,7 +86,19 @@ public enum AppErrorMessage {
         "A transfer reference is required when recording PAID and accepted only then."),
     RELEASE_REFERENCE_IN_USE(HttpStatus.CONFLICT, "This transfer reference is already recorded for another release."),
     RECONCILIATION_MISMATCH(HttpStatus.CONFLICT,
-        "Releases are paused: the ledger and the records disagree. See GET /admin/finance/reconciliation."),
+        "Money cannot leave: the ledger and the records disagree. See GET /admin/finance/reconciliation."),
+    ORDER_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "Order Item was not found."),
+    REFUND_NOT_ALLOWED(HttpStatus.CONFLICT, "This Order Item cannot be refunded."),
+    REFUND_REQUEST_OPEN(HttpStatus.CONFLICT, "This Order Item already has an open or completed refund request."),
+    REFUND_REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "Refund request was not found."),
+    REFUND_ALREADY_DECIDED(HttpStatus.CONFLICT, "This refund request has already been decided."),
+    REFUND_DECISION_REASON_REQUIRED(HttpStatus.BAD_REQUEST, "A reason is required to reject a refund request."),
+    REFUND_TRANSFER_NOT_FOUND(HttpStatus.NOT_FOUND, "Refund transfer was not found."),
+    REFUND_TRANSFER_STATUS_CHANGE_NOT_ALLOWED(HttpStatus.CONFLICT,
+        "This refund transfer status change is not allowed."),
+    REFUND_REFERENCE_INVALID(HttpStatus.BAD_REQUEST,
+        "A transfer reference is required when recording SUCCEEDED and accepted only then."),
+    REFUND_REFERENCE_IN_USE(HttpStatus.CONFLICT, "This transfer reference is already recorded for another refund."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "The request could not be completed.");
 
     private final HttpStatus status;

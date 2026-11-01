@@ -16,6 +16,7 @@ import com.exe101.entity.OrderItemAsset;
 import com.exe101.entity.OrderShippingAddress;
 import com.exe101.entity.Payment;
 import com.exe101.entity.PhysicalFulfillment;
+import com.exe101.entity.RefundRequest;
 import com.exe101.listing.model.ListingType;
 import com.exe101.listing.model.PurchaseItem;
 import com.exe101.listing.service.ListingService;
@@ -32,6 +33,7 @@ import com.exe101.order.model.PaymentSettlement;
 import com.exe101.order.model.PaymentStatus;
 import com.exe101.order.model.PaymentTarget;
 import com.exe101.order.repository.ItemFulfillmentRepository;
+import com.exe101.order.repository.ItemRefundRepository;
 import com.exe101.order.repository.OrderItemAssetRepository;
 import com.exe101.order.repository.OrderItemRepository;
 import com.exe101.order.repository.OrderRepository;
@@ -66,6 +68,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderShippingAddressRepository shippingRepository;
     private final PaymentRepository paymentRepository;
     private final ItemFulfillmentRepository fulfillmentRepository;
+    private final ItemRefundRepository refundRepository;
     private final OrderEntityMapper mapper;
     private final CartService cartService;
     private final CartMapper cartMapper;
@@ -328,11 +331,17 @@ public class OrderServiceImpl implements OrderService {
         Map<Long, ItemFulfillment> fulfillments = itemIds.isEmpty() ? Map.of() : fulfillmentRepository
             .findByOrderItemIdIn(itemIds).stream()
             .collect(Collectors.toMap(PhysicalFulfillment::getOrderItemId, mapper::toModel));
+        // Requests come oldest first, so the latest one per item is kept.
+        Map<Long, String> refundStatuses = itemIds.isEmpty() ? Map.of() : refundRepository
+            .findByOrderItemIdInOrderByRefundRequestIdAsc(itemIds).stream()
+            .collect(Collectors.toMap(RefundRequest::getOrderItemId, RefundRequest::getStatus,
+                (earlier, later) -> later));
         Map<Long, List<OrderLine>> lines = items.stream()
             .collect(Collectors.groupingBy(OrderItem::getOrderId, Collectors.mapping(item -> {
                 OrderLine line = mapper.toModel(item);
                 line.setAssets(assets.getOrDefault(item.getOrderItemId(), List.of()));
                 line.setFulfillment(fulfillments.get(item.getOrderItemId()));
+                line.setRefundStatus(refundStatuses.get(item.getOrderItemId()));
 
                 return line;
             }, Collectors.toList())));

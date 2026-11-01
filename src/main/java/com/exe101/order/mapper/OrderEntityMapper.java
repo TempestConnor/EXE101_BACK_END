@@ -73,6 +73,7 @@ public interface OrderEntityMapper {
     @Mapping(source = "lineSubtotal", target = "withLineSubtotal")
     @Mapping(target = "withAssets", ignore = true)
     @Mapping(target = "withFulfillment", ignore = true)
+    @Mapping(target = "withRefundStatus", ignore = true)
     OrderLine toModel(OrderItem entity);
 
     @Mapping(source = "status", target = "withStatus")

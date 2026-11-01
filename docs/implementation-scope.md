@@ -63,6 +63,12 @@ append-only double-entry ledger, and a reconciliation mismatch blocks releases; 
 release's declared limitations are amendment F of the business rules. `VOID` on refund belongs to F15, Quote
 proceeds to priority 3.
 
+F15 increment: whole-item refunds of physical items before delivery, and returns requested within 48 hours after it,
+decided by the Admin under the same locks as the window close, refunding the line total and its tax, with the Order's
+shipping refunded once at the approval that completes the physical portion, follow [Refunds](refunds.md). The Admin
+sends each refund by hand and records its outcome; every refund is posted to the ledger (migration `0003`). Refunds of
+F11 exception payments stay manual and unrecorded; Commission refunds belong to priority 3.
+
 Requirements change recorded 31 October 2026: the site is the storefront of one
 Artist team, with no Platform Fee, held funds released to each Artist's own
 account, a 48-hour post-delivery return window, split Commission payments, and

@@ -88,6 +88,12 @@ public class EntitlementServiceImpl implements EntitlementService {
         return Optional.of(granted);
     }
 
+    // A refund cannot reach an item whose files the buyer already holds (amendment §C.10).
+    @Override
+    public boolean isGranted(Long orderItemId) {
+        return repository.existsByOrderItemId(orderItemId);
+    }
+
     // Every entitlement belongs to one of the caller's own Orders, so the snapshots come from those Orders.
     @Override
     public List<Purchase> listOwn(Long userId) {

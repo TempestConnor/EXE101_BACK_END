@@ -122,9 +122,9 @@ it from the development database with `database/test/reset_test_database.sql`.
 
 ## Known limits
 
-- Refunds belong to F15: setting proceeds to `VOID`, and returns that withhold a physical release. Until F15 exists
-  no return requests are created, so every delivered item is released when its window closes. Refunds never reach
-  released money, because every refund window closes before release (amendment §B.8).
+- Refunds are F15 ([Refunds](refunds.md)): an approved refund sets held proceeds to `VOID` and reverses them in the
+  ledger, and an open request withholds the physical release. Refunds never reach released money, because approval
+  requires the proceeds to be `HELD` (amendment §B.8).
 - Items paid before F14 was deployed have no proceeds record. Their window close grants the files and releases
   nothing.
 - A release carries exactly one line. Batching several items into one transfer would need a new decision.

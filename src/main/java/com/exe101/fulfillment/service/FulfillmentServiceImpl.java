@@ -170,6 +170,40 @@ public class FulfillmentServiceImpl implements FulfillmentService {
         return granted;
     }
 
+    // For a refund decision, which holds the Order lock already: the item is locked after it, as in advance().
+    @Override
+    public Optional<Fulfillment> findLocked(Long orderItemId) {
+        return repository.findWithLockByOrderItemId(orderItemId).map(mapper::toModel);
+    }
+
+    // F15 R4: an approved refund cancels an item that has not been delivered. The caller holds the Order and item
+    // locks and has checked the refund; a delivered item keeps DELIVERED, because DeliveredAt belongs to it.
+    @Override
+    public Fulfillment cancel(Long staffId, Long orderItemId, String reason) {
+        PhysicalFulfillment entity = repository.findWithLockByOrderItemId(orderItemId)
+            .orElseThrow(() -> new AppException(AppErrorMessage.FULFILLMENT_NOT_FOUND));
+        FulfillmentStatus current = FulfillmentStatus.valueOf(entity.getStatus());
+
+        if (!nextStep.containsKey(current)) {
+            throw new IllegalStateException("Fulfillment cannot be cancelled from " + current + ": " + orderItemId);
+        }
+
+        OffsetDateTime changedAt = now();
+        entity.setStatus(FulfillmentStatus.CANCELLED.name());
+        entity.setUpdatedAt(changedAt);
+        PhysicalFulfillment saved = repository.saveAndFlush(entity);
+        record(orderItemId, current, FulfillmentStatus.CANCELLED, reason, changedAt, staffId);
+        log.info("[FULFILLMENT] - ACTION: cancel: staffId: {}: orderItemId: {}: from: {}", staffId, orderItemId,
+            current);
+
+        return mapper.toModel(saved);
+    }
+
+    @Override
+    public OffsetDateTime returnWindowClosesAt(OffsetDateTime deliveredAt) {
+        return deliveredAt.plus(properties.returnWindow());
+    }
+
     private Fulfillment begin(Long orderItemId, OffsetDateTime startedAt) {
         Fulfillment fulfillment = Fulfillment.builder()
             .withOrderItemId(orderItemId)

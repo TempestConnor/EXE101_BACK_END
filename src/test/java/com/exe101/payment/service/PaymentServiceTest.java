@@ -19,6 +19,7 @@ import com.exe101.order.mapper.OrderEntityMapperImpl;
 import com.exe101.order.model.Order;
 import com.exe101.order.model.OrderStatus;
 import com.exe101.order.repository.ItemFulfillmentRepository;
+import com.exe101.order.repository.ItemRefundRepository;
 import com.exe101.order.repository.OrderItemAssetRepository;
 import com.exe101.order.repository.OrderItemRepository;
 import com.exe101.order.repository.OrderRepository;
@@ -107,6 +108,8 @@ class PaymentServiceTest {
     @Mock
     private ItemFulfillmentRepository fulfillmentRepository;
     @Mock
+    private ItemRefundRepository refundRepository;
+    @Mock
     private CartService cartService;
     @Mock
     private ListingService listingService;
@@ -132,7 +135,8 @@ class PaymentServiceTest {
     @BeforeEach
     void setUp() {
         var orderService = new OrderServiceImpl(orderRepository, itemRepository, assetRepository, shippingRepository,
-            paymentRepository, fulfillmentRepository, new OrderEntityMapperImpl(), cartService, new CartMapperImpl(),
+            paymentRepository, fulfillmentRepository, refundRepository, new OrderEntityMapperImpl(), cartService,
+            new CartMapperImpl(),
             listingService, addressService, customerService,
             new OrderProperties(Duration.ofMinutes(30), Duration.ofMinutes(1)));
         var gateway = new VnpayGateway(new VnpayProperties(tmnCode, hashSecret, URI.create(payUrl),

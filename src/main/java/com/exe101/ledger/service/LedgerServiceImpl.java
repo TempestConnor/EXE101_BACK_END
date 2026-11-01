@@ -14,6 +14,7 @@ import com.exe101.ledger.model.LedgerSourceType;
 import com.exe101.ledger.model.Mismatch;
 import com.exe101.ledger.model.MismatchCheck;
 import com.exe101.ledger.model.Reconciliation;
+import com.exe101.ledger.model.RefundMovement;
 import com.exe101.ledger.repository.ItemBalance;
 import com.exe101.ledger.repository.LedgerEntryRepository;
 import com.exe101.ledger.repository.LedgerTransactionRepository;
@@ -48,7 +49,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class LedgerServiceImpl implements LedgerService {
     private static List<LedgerAccount> artistAccounts = List.of(LedgerAccount.ARTIST_HELD,
         LedgerAccount.ARTIST_AVAILABLE, LedgerAccount.ARTIST_RELEASING);
-    // Where an item's proceeds must sit for each status; PAID, and VOID once refunds exist, leave nothing owed.
+    // Where an item's proceeds must sit for each status; PAID and VOID (refunded) leave nothing owed.
     private static Map<String, LedgerAccount> proceedsAccounts = Map.of(
         "HELD", LedgerAccount.ARTIST_HELD,
         "ELIGIBLE", LedgerAccount.ARTIST_AVAILABLE,
@@ -124,6 +125,30 @@ public class LedgerServiceImpl implements LedgerService {
             LedgerAccount.ARTIST_AVAILABLE);
     }
 
+    // An approved refund takes back what the item still owed, and the shipping when it is the last physical item;
+    // the buyer is owed the sum until the transfer succeeds. A failed transfer writes nothing (approved 1 November
+    // 2026), so the money stays in REFUND_PAYABLE until a retry succeeds.
+    @Override
+    public void recordRefundApproved(RefundMovement movement) {
+        Long orderItemId = movement.getOrderItemId();
+        post(LedgerEventType.REFUND_APPROVED, LedgerSourceType.REFUND_REQUEST, movement.getSourceId(),
+            movement.getOccurredAt(), List.of(
+                line(LedgerAccount.ARTIST_HELD, movement.getArtistId(), orderItemId, movement.getProceeds()),
+                line(LedgerAccount.MANUFACTURER_PAYABLE, null, orderItemId, movement.getManufacturing()),
+                line(LedgerAccount.TAX_PAYABLE, null, orderItemId, movement.getTax()),
+                line(LedgerAccount.SHIPPING, null, null, movement.getShipping()),
+                line(LedgerAccount.REFUND_PAYABLE, null, orderItemId, movement.getAmount().negate())));
+    }
+
+    @Override
+    public void recordRefundPaid(RefundMovement movement) {
+        BigDecimal amount = movement.getAmount();
+        post(LedgerEventType.REFUND_PAID, LedgerSourceType.REFUND_TRANSFER, movement.getSourceId(),
+            movement.getOccurredAt(), List.of(
+                line(LedgerAccount.REFUND_PAYABLE, null, movement.getOrderItemId(), amount),
+                line(LedgerAccount.CASH, null, null, amount.negate())));
+    }
+
     @Override
     @Transactional(readOnly = true)
     public Reconciliation reconcile() {
@@ -151,7 +176,19 @@ public class LedgerServiceImpl implements LedgerService {
                     reconciliationRepository.findOutcomesWithoutRelease(LedgerEventType.RELEASE_PAID.name(), "PAID")),
                 mismatches(MismatchCheck.UNEXPECTED_ENTRY, "Payout",
                     reconciliationRepository.findOutcomesWithoutRelease(LedgerEventType.RELEASE_FAILED.name(),
-                        "FAILED")))
+                        "FAILED")),
+                mismatches(MismatchCheck.MISSING_ENTRY, "RefundRequest",
+                    reconciliationRepository.findApprovedRefundsWithoutEntry()),
+                mismatches(MismatchCheck.UNEXPECTED_ENTRY, "RefundRequest",
+                    reconciliationRepository.findRefundEntriesWithoutApproval()),
+                mismatches(MismatchCheck.AMOUNT_DISAGREES, "RefundTransfer",
+                    reconciliationRepository.findTransfersDisagreeingWithApproval()),
+                mismatches(MismatchCheck.MISSING_ENTRY, "RefundTransfer",
+                    reconciliationRepository.findSucceededTransfersWithoutEntry()),
+                mismatches(MismatchCheck.UNEXPECTED_ENTRY, "RefundTransfer",
+                    reconciliationRepository.findRefundPaymentsWithoutTransfer()),
+                mismatches(MismatchCheck.AMOUNT_DISAGREES, "RefundTransfer",
+                    reconciliationRepository.findRefundPaymentsWithWrongAmount()))
             .flatMap(List::stream)
             .toList();
         List<AccountBalance> balances = reconciliationRepository.findAccountTotals().stream()

@@ -37,4 +37,5 @@ public class OrderLine {
     private BigDecimal lineSubtotal;
     private List<OrderAsset> assets;
     private ItemFulfillment fulfillment;
+    private String refundStatus;
 }

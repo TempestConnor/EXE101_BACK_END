@@ -63,7 +63,8 @@ status), `403` for non-Admin tokens.
 ## Known limits
 
 - The proceeds release at the same window close is added by F14 ([Artist proceeds](artist-proceeds.md)).
-- Return requests, `FAILED`/`CANCELLED` and the refund route belong to F15. Until then no refund requests exist,
-  so every delivered item is granted when its window closes.
+- Return requests and the refund route are F15 ([Refunds](refunds.md)): an approved refund sets an undelivered item
+  to `CANCELLED`; `FAILED` is unused.
 - Whether 48 hours meets consumer-protection law, and the return-shipping procedure, are open (amendment §E).
-- `RefundRequest` is read through a fulfillment-owned read-only repository until F15 provides a service for it.
+- `RefundRequest` stays read through a fulfillment-owned read-only repository: the refund service calls this one to
+  cancel items, so reading through it would make the two depend on each other.

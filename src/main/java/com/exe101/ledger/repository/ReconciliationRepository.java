@@ -6,7 +6,7 @@ import java.util.List;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 
-// Read-only checks of the ledger against the payment, proceeds and release tables (Stripe-style completeness and
+// Read-only checks of the ledger against the payment, proceeds, release and refund tables (Stripe-style completeness and
 // clearing checks). Each query returns the IDs of the records that disagree.
 public interface ReconciliationRepository extends Repository<LedgerTransaction, Long> {
     @Query("SELECT e.account AS account, SUM(e.amount) AS amount FROM LedgerEntry e GROUP BY e.account")
@@ -38,8 +38,9 @@ public interface ReconciliationRepository extends Repository<LedgerTransaction, 
         + " AND t.sourceType = 'PROVIDER_EVENT' AND t.sourceId = e.providerEventId)")
     List<Long> findExceptionsWithoutEntry();
 
-    @Query("SELECT p.proceedsId FROM ArtistProceeds p WHERE p.orderItemId IS NOT NULL AND p.status <> 'HELD'"
-        + " AND p.amount <> 0 AND NOT EXISTS (SELECT 1 FROM LedgerTransaction t WHERE t.type = 'PROCEEDS_RELEASED'"
+    // VOID proceeds were refunded while still held, so they were never released.
+    @Query("SELECT p.proceedsId FROM ArtistProceeds p WHERE p.orderItemId IS NOT NULL"
+        + " AND p.status NOT IN ('HELD', 'VOID') AND p.amount <> 0 AND NOT EXISTS (SELECT 1 FROM LedgerTransaction t WHERE t.type = 'PROCEEDS_RELEASED'"
         + " AND t.sourceType = 'PROCEEDS' AND t.sourceId = p.proceedsId)")
     List<Long> findReleasedProceedsWithoutEntry();
 
@@ -59,4 +60,36 @@ public interface ReconciliationRepository extends Repository<LedgerTransaction, 
         + " AND t.type = 'PAYMENT_RECEIVED' AND e.account = 'CASH' AND p.paymentId = t.sourceId"
         + " GROUP BY t.sourceId, p.amount HAVING SUM(e.amount) <> p.amount")
     List<Long> findReceiptsWithWrongAmount();
+
+    // An approved item refund stays approved through its transfer, until it is REFUNDED.
+    @Query("SELECT r.refundRequestId FROM RefundRequest r WHERE r.orderItemId IS NOT NULL"
+        + " AND r.status IN ('APPROVED', 'PROCESSING', 'REFUNDED') AND NOT EXISTS (SELECT 1 FROM LedgerTransaction t"
+        + " WHERE t.type = 'REFUND_APPROVED' AND t.sourceType = 'REFUND_REQUEST' AND t.sourceId = r.refundRequestId)")
+    List<Long> findApprovedRefundsWithoutEntry();
+
+    @Query("SELECT t.sourceId FROM LedgerTransaction t WHERE t.type = 'REFUND_APPROVED' AND NOT EXISTS"
+        + " (SELECT 1 FROM RefundRequest r WHERE r.refundRequestId = t.sourceId"
+        + " AND r.status IN ('APPROVED', 'PROCESSING', 'REFUNDED'))")
+    List<Long> findRefundEntriesWithoutApproval();
+
+    // What the approval made owed to the buyer must be exactly what the transfer sends.
+    @Query("SELECT x.refundTransferId FROM RefundTransfer x, LedgerTransaction t, LedgerEntry e"
+        + " WHERE t.type = 'REFUND_APPROVED' AND t.sourceType = 'REFUND_REQUEST' AND t.sourceId = x.refundRequestId"
+        + " AND e.transactionId = t.transactionId AND e.account = 'REFUND_PAYABLE'"
+        + " GROUP BY x.refundTransferId, x.amount HAVING SUM(e.amount) + x.amount <> 0")
+    List<Long> findTransfersDisagreeingWithApproval();
+
+    @Query("SELECT x.refundTransferId FROM RefundTransfer x WHERE x.status = 'SUCCEEDED' AND NOT EXISTS"
+        + " (SELECT 1 FROM LedgerTransaction t WHERE t.type = 'REFUND_PAID' AND t.sourceType = 'REFUND_TRANSFER'"
+        + " AND t.sourceId = x.refundTransferId)")
+    List<Long> findSucceededTransfersWithoutEntry();
+
+    @Query("SELECT t.sourceId FROM LedgerTransaction t WHERE t.type = 'REFUND_PAID' AND NOT EXISTS"
+        + " (SELECT 1 FROM RefundTransfer x WHERE x.refundTransferId = t.sourceId AND x.status = 'SUCCEEDED')")
+    List<Long> findRefundPaymentsWithoutTransfer();
+
+    @Query("SELECT t.sourceId FROM LedgerTransaction t, LedgerEntry e, RefundTransfer x"
+        + " WHERE e.transactionId = t.transactionId AND t.type = 'REFUND_PAID' AND e.account = 'CASH'"
+        + " AND x.refundTransferId = t.sourceId GROUP BY t.sourceId, x.amount HAVING SUM(e.amount) + x.amount <> 0")
+    List<Long> findRefundPaymentsWithWrongAmount();
 }

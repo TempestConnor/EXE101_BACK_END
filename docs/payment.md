@@ -28,7 +28,8 @@ Decisions recorded 1 November 2026 for the F11 increment. Only Order payments; p
   | Bad signature or malformed | nothing recorded | | | | `97` |
 
   An exception never fulfils, grants or pays out. Refunding money behind an exception is handled outside the
-  system until F15; the `EXCEPTION` statuses are the reconciliation list.
+  system and is not recorded, also after F15 ([Refunds](refunds.md#known-limits)); the `EXCEPTION` statuses are the
+  reconciliation list.
 - **License contract (B3):** not part of F11. Demo digital purchases carry no contract consent; revisit before
   production, with its own schema decision (amendment §D.17, §E).
 - **Endpoints (R1):** `POST /orders/{orderId}/payment-attempts` for the buyer only (staff `403`, another Customer's

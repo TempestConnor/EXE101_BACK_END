@@ -4,5 +4,7 @@ public enum LedgerSourceType {
     PAYMENT,
     PROVIDER_EVENT,
     PROCEEDS,
-    PAYOUT
+    PAYOUT,
+    REFUND_REQUEST,
+    REFUND_TRANSFER
 }
