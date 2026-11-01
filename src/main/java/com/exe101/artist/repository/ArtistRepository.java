@@ -21,6 +21,10 @@ public interface ArtistRepository extends JpaRepository<ArtistProfile, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<ArtistProfile> findWithLockByArtistId(Long artistId);
 
+    // UPDLOCK until commit: a settings change waits for a status change in progress, and the reverse.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<ArtistProfile> findWithLockByUserId(long userId);
+
     // Shared lock until commit: compatible with an Order's UPDLOCK, so publishing never deadlocks with checkout,
     // but a status change waits for it, and it waits for a status change in progress.
     @Lock(LockModeType.PESSIMISTIC_READ)

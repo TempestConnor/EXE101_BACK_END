@@ -20,8 +20,10 @@ public interface ArtistEntityMapper {
     @Mapping(source = "artistId", target = "withArtistId")
     @Mapping(source = "userId", target = "withUserId")
     @Mapping(source = "displayName", target = "withDisplayName")
+    @Mapping(source = "bio", target = "withBio")
     @Mapping(source = "status", target = "withStatus")
     @Mapping(source = "acceptingCommissions", target = "withAcceptingCommissions")
+    @Mapping(source = "startingPrice", target = "withStartingPrice")
     @Mapping(source = "authorizedByStaffId", target = "withAuthorizedByStaffId")
     @Mapping(source = "createdAt", target = "withCreatedAt")
     Artist toModel(ArtistProfile entity);

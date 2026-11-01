@@ -11,6 +11,8 @@ public interface FileService {
 
     StoredFileInfo storeProtected(NewFile file);
 
+    StoredFileInfo storeCommission(NewFile file);
+
     boolean hasContent(Long fileId);
 
     FileContent read(Long fileId);

@@ -74,6 +74,11 @@ F03 increment (priority 2): Admin-only, audited deactivation and reinstatement o
 unchanged, follow [Artist deactivation](artist-deactivation.md). Pending Commission requests and Quotes (Q05) belong
 to priority 3.
 
+F16 increment (priority 3): Commission requests to an `ACTIVE` Artist who accepts them, with the Customer's
+public-display choice (migration `0004`), protected reference files, a participant-only thread that cannot be
+edited, and the Artist's commission settings, follow [Commission requests](commission-requests.md). Quotes, the
+sketch stage, payments and the license contract belong to F17 onwards.
+
 Requirements change recorded 31 October 2026: the site is the storefront of one
 Artist team, with no Platform Fee, held funds released to each Artist's own
 account, a 48-hour post-delivery return window, split Commission payments, and

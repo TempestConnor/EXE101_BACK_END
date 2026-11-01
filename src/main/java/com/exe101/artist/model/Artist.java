@@ -1,5 +1,6 @@
 package com.exe101.artist.model;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -16,8 +17,10 @@ public class Artist {
     private Long artistId;
     private Long userId;
     private String displayName;
+    private String bio;
     private String status;
     private boolean acceptingCommissions;
+    private BigDecimal startingPrice;
     private Long authorizedByStaffId;
     private OffsetDateTime createdAt;
 }

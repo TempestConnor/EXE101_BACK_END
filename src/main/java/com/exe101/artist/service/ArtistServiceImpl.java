@@ -4,6 +4,7 @@ import com.exe101.artist.mapper.ArtistEntityMapper;
 import com.exe101.artist.model.Artist;
 import com.exe101.artist.model.ArtistDeactivation;
 import com.exe101.artist.model.ArtistGrant;
+import com.exe101.artist.model.CommissionSettings;
 import com.exe101.artist.repository.ArtistDeactivationRepository;
 import com.exe101.artist.repository.ArtistRepository;
 import com.exe101.audit.model.AuditEntry;
@@ -15,6 +16,7 @@ import com.exe101.customer.model.Customer;
 import com.exe101.customer.service.CustomerService;
 import com.exe101.entity.ArtistProfile;
 import com.exe101.entity.ArtistSuspension;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Collection;
@@ -37,6 +39,9 @@ public class ArtistServiceImpl implements ArtistService {
     private static String deactivateAction = "ARTIST_DEACTIVATED";
     private static String reinstateAction = "ARTIST_REINSTATED";
     private static String artistTarget = "ArtistProfile";
+    // Money is whole VND, stored as decimal(19,4): at most 15 integer digits.
+    private static int moneyScale = 4;
+    private static BigDecimal moneyLimit = BigDecimal.TEN.pow(15);
     private final ArtistRepository repository;
     private final ArtistDeactivationRepository deactivationRepository;
     private final ArtistEntityMapper mapper;
@@ -118,6 +123,50 @@ public class ArtistServiceImpl implements ArtistService {
         return mapper.toModel(entity);
     }
 
+    // The same shared lock as publishing: a request in progress commits before a deactivation, and a request that
+    // starts later sees it (§17.9).
+    @Override
+    public Artist lockForCommission(Long artistId) {
+        ArtistProfile entity = repository.findWithSharedLockByArtistId(artistId)
+            .orElseThrow(() -> new AppException(AppErrorMessage.ARTIST_NOT_FOUND));
+
+        return mapper.toModel(entity);
+    }
+
+    @Override
+    public Artist getPublic(Long artistId) {
+        ArtistProfile entity = repository.findById(artistId)
+            .orElseThrow(() -> new AppException(AppErrorMessage.ARTIST_NOT_FOUND));
+
+        return mapper.toModel(entity);
+    }
+
+    // Only an ACTIVE Artist opens or closes requests (§2.6). Deactivation leaves the setting as it was; the status
+    // alone blocks new requests.
+    @Override
+    public Artist updateCommissionSettings(Long userId, CommissionSettings settings) {
+        BigDecimal startingPrice = settings.getStartingPrice();
+
+        if (startingPrice != null && !isWholeVnd(startingPrice)) {
+            throw new AppException(AppErrorMessage.ARTIST_SETTINGS_INVALID);
+        }
+
+        ArtistProfile entity = repository.findWithLockByUserId(userId)
+            .orElseThrow(() -> new AppException(AppErrorMessage.ARTIST_PROFILE_REQUIRED));
+
+        if (!activeStatus.equals(entity.getStatus())) {
+            throw new AppException(AppErrorMessage.ARTIST_NOT_ACTIVE);
+        }
+
+        entity.setAcceptingCommissions(settings.isAcceptingCommissions());
+        entity.setStartingPrice(startingPrice == null ? null : startingPrice.setScale(moneyScale));
+        ArtistProfile saved = repository.saveAndFlush(entity);
+        log.info("[ARTIST] - ACTION: updateCommissionSettings: artistId: {}: accepting: {}", saved.getArtistId(),
+            saved.isAcceptingCommissions());
+
+        return mapper.toModel(saved);
+    }
+
     // Under the Artist's row lock, so an Order or publication in progress commits first and later ones see the
     // deactivation. Listings are not rewritten: availability is computed from the status (F03).
     @Override
@@ -190,6 +239,10 @@ public class ArtistServiceImpl implements ArtistService {
     private ArtistProfile requireLocked(Long artistId) {
         return repository.findWithLockByArtistId(artistId)
             .orElseThrow(() -> new AppException(AppErrorMessage.ARTIST_NOT_FOUND));
+    }
+
+    private boolean isWholeVnd(BigDecimal value) {
+        return value.signum() >= 0 && value.stripTrailingZeros().scale() <= 0 && value.compareTo(moneyLimit) < 0;
     }
 
     private OffsetDateTime now() {

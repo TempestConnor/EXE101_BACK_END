@@ -40,6 +40,7 @@ public class FileServiceImpl implements FileService {
     private static String publicPrefix = "public/";
     private static String protectedAccess = "PURCHASED";
     private static String protectedPrefix = "protected/";
+    private static String commissionAccess = "COMMISSION";
     private static List<String> storagePrefixes = List.of(publicPrefix, protectedPrefix);
     private static String defaultName = "file";
     private static String digestAlgorithm = "SHA-256";
@@ -57,6 +58,12 @@ public class FileServiceImpl implements FileService {
     @Override
     public StoredFileInfo storeProtected(NewFile file) {
         return store(file, protectedPrefix, protectedAccess);
+    }
+
+    // Commission files share the protected storage area; access is checked against Commission participation (§27.6).
+    @Override
+    public StoredFileInfo storeCommission(NewFile file) {
+        return store(file, protectedPrefix, commissionAccess);
     }
 
     @Override

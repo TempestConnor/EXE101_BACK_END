@@ -2,6 +2,7 @@ package com.exe101.artist.service;
 
 import com.exe101.artist.mapper.ArtistEntityMapper;
 import com.exe101.artist.model.ArtistGrant;
+import com.exe101.artist.model.CommissionSettings;
 import com.exe101.artist.repository.ArtistDeactivationRepository;
 import com.exe101.artist.repository.ArtistRepository;
 import com.exe101.audit.service.AuditService;
@@ -12,6 +13,7 @@ import com.exe101.customer.service.CustomerService;
 import com.exe101.audit.model.AuditEntry;
 import com.exe101.entity.ArtistProfile;
 import com.exe101.entity.ArtistSuspension;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Optional;
@@ -208,6 +210,58 @@ class ArtistServiceTest {
         verify(deactivationRepository, never()).saveAndFlush(any());
         verify(repository, never()).saveAndFlush(any());
         verify(auditService, never()).record(any());
+    }
+
+    @Test
+    void update_commission_settings_ok() {
+        // given
+        var profile = profile("ACTIVE");
+        when(repository.findWithLockByUserId(42L)).thenReturn(Optional.of(profile));
+        when(repository.saveAndFlush(profile)).thenReturn(profile);
+
+        // when
+        var result = service.updateCommissionSettings(42L, new CommissionSettings(true, new BigDecimal("500000")));
+
+        // then
+        assertAll(
+            () -> assertThat(profile.isAcceptingCommissions()).isTrue(),
+            () -> assertThat(profile.getStartingPrice()).isEqualByComparingTo("500000"),
+            () -> assertThat(profile.getStartingPrice().scale()).isEqualTo(4),
+            () -> assertThat(result.isAcceptingCommissions()).isTrue(),
+            () -> assertThat(result.getStartingPrice()).isEqualByComparingTo("500000")
+        );
+    }
+
+    @Test
+    void update_commission_settings_deactivated_ko() {
+        // given
+        when(repository.findWithLockByUserId(42L)).thenReturn(Optional.of(profile("SUSPENDED")));
+
+        // when / then
+        assertThatThrownBy(() -> service.updateCommissionSettings(42L, new CommissionSettings(true, null)))
+            .isInstanceOf(AppException.class).hasMessage(AppErrorMessage.ARTIST_NOT_ACTIVE.getDetail());
+        verify(repository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void update_commission_settings_negative_price_ko() {
+        // given
+        var settings = new CommissionSettings(true, new BigDecimal("-1"));
+
+        // when / then
+        assertThatThrownBy(() -> service.updateCommissionSettings(42L, settings))
+            .isInstanceOf(AppException.class).hasMessage(AppErrorMessage.ARTIST_SETTINGS_INVALID.getDetail());
+        verify(repository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void get_public_artist_not_found_ko() {
+        // given
+        when(repository.findById(9L)).thenReturn(Optional.empty());
+
+        // when / then
+        assertThatThrownBy(() -> service.getPublic(9L))
+            .isInstanceOf(AppException.class).hasMessage(AppErrorMessage.ARTIST_NOT_FOUND.getDetail());
     }
 
     private ArtistProfile profile(String status) {

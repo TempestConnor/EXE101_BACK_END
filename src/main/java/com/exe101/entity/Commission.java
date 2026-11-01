@@ -28,6 +28,7 @@ public class Commission  implements java.io.Serializable {
      private String artistNameSnapshot;
      private OffsetDateTime createdAt;
      private OffsetDateTime completedAt;
+     private boolean allowPublicDisplay;
      private byte[] rowVer;
 
     public Commission() {
@@ -150,6 +151,16 @@ public class Commission  implements java.io.Serializable {
     
     public void setCompletedAt(OffsetDateTime completedAt) {
         this.completedAt = completedAt;
+    }
+
+    
+    @Column(name="AllowPublicDisplay", nullable=false, columnDefinition="bit")
+    public boolean isAllowPublicDisplay() {
+        return this.allowPublicDisplay;
+    }
+    
+    public void setAllowPublicDisplay(boolean allowPublicDisplay) {
+        this.allowPublicDisplay = allowPublicDisplay;
     }
 
     
