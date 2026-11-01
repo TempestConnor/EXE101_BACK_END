@@ -5,9 +5,11 @@ import com.exe101.order.dto.CreateOrderDTO;
 import com.exe101.order.dto.CreateOrderLineDTO;
 import com.exe101.order.dto.OrderDTO;
 import com.exe101.order.dto.OrderItemDTO;
+import com.exe101.order.dto.OrderItemFulfillmentDTO;
 import com.exe101.order.dto.OrderShippingAddressDTO;
 import com.exe101.order.dto.PaymentTargetDTO;
 import com.exe101.order.model.CommitLine;
+import com.exe101.order.model.ItemFulfillment;
 import com.exe101.order.model.Order;
 import com.exe101.order.model.OrderAsset;
 import com.exe101.order.model.OrderCommit;
@@ -39,6 +41,8 @@ public interface OrderMapper {
 
     @Mapping(source = "assets", target = "assetIds", qualifiedByName = "assetIds")
     OrderItemDTO toDto(OrderLine line);
+
+    OrderItemFulfillmentDTO toDto(ItemFulfillment fulfillment);
 
     OrderShippingAddressDTO toDto(ShippingAddress address);
 

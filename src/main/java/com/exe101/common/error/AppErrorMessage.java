@@ -73,6 +73,11 @@ public enum AppErrorMessage {
     ORDER_TOTAL_ZERO(HttpStatus.UNPROCESSABLE_CONTENT, "An Order with a total of 0 VND cannot be created."),
     ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "Order was not found."),
     ORDER_NOT_PAYABLE(HttpStatus.CONFLICT, "This Order is paid, expired or past its payment window."),
+    FULFILLMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "Physical Order Item was not found."),
+    FULFILLMENT_NOT_STARTED(HttpStatus.CONFLICT, "Fulfillment starts only after the Order is paid."),
+    FULFILLMENT_STATUS_CHANGE_NOT_ALLOWED(HttpStatus.CONFLICT, "This fulfillment status change is not allowed."),
+    FULFILLMENT_SHIPMENT_INVALID(HttpStatus.BAD_REQUEST,
+        "Carrier and tracking are recorded only when shipping, and tracking needs a carrier."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "The request could not be completed.");
 
     private final HttpStatus status;

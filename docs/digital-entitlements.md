@@ -36,7 +36,7 @@ against `CuratedArtworkMarketplace_Test`, selected by `TEST_DB_URL` (see [Paymen
 
 ## Known limits
 
-- The physical-item grant and the acceptance criterion "when that physical item becomes eligible, its exact files
-  become accessible once" wait for F13/F15.
+- The physical-item grant at the close of the return window is added by F13
+  ([Physical fulfillment](physical-fulfillment.md)); the return requests that withhold it come with F15.
 - Historical access after account deletion (Q16) is deferred with account deletion.
 - The license contract for digital purchases is not recorded (payment.md B3).

@@ -11,11 +11,13 @@ import com.exe101.entity.MarketplaceOrder;
 import com.exe101.entity.Payment;
 import com.exe101.entity.PaymentAttempt;
 import com.exe101.entity.ProviderEvent;
+import com.exe101.fulfillment.service.FulfillmentService;
 import com.exe101.listing.service.ListingService;
 import com.exe101.order.config.OrderProperties;
 import com.exe101.order.mapper.OrderEntityMapperImpl;
 import com.exe101.order.model.Order;
 import com.exe101.order.model.OrderStatus;
+import com.exe101.order.repository.ItemFulfillmentRepository;
 import com.exe101.order.repository.OrderItemAssetRepository;
 import com.exe101.order.repository.OrderItemRepository;
 import com.exe101.order.repository.OrderRepository;
@@ -101,6 +103,8 @@ class PaymentServiceTest {
     @Mock
     private PaymentRepository paymentRepository;
     @Mock
+    private ItemFulfillmentRepository fulfillmentRepository;
+    @Mock
     private CartService cartService;
     @Mock
     private ListingService listingService;
@@ -110,6 +114,8 @@ class PaymentServiceTest {
     private CustomerService customerService;
     @Mock
     private EntitlementService entitlementService;
+    @Mock
+    private FulfillmentService fulfillmentService;
     private PaymentServiceImpl service;
     private MarketplaceOrder order;
     private Payment payment;
@@ -120,12 +126,13 @@ class PaymentServiceTest {
     @BeforeEach
     void setUp() {
         var orderService = new OrderServiceImpl(orderRepository, itemRepository, assetRepository, shippingRepository,
-            paymentRepository, new OrderEntityMapperImpl(), cartService, new CartMapperImpl(), listingService,
-            addressService, customerService, new OrderProperties(Duration.ofMinutes(30), Duration.ofMinutes(1)));
+            paymentRepository, fulfillmentRepository, new OrderEntityMapperImpl(), cartService, new CartMapperImpl(),
+            listingService, addressService, customerService,
+            new OrderProperties(Duration.ofMinutes(30), Duration.ofMinutes(1)));
         var gateway = new VnpayGateway(new VnpayProperties(tmnCode, hashSecret, URI.create(payUrl),
             URI.create("http://localhost:3000/payment/return")));
         service = new PaymentServiceImpl(attemptRepository, eventRepository, new PaymentEntityMapperImpl(),
-            orderService, gateway, entitlementService);
+            orderService, gateway, entitlementService, fulfillmentService);
         order = order("PENDING_PAYMENT", now().plusMinutes(20));
         payment = payment("PENDING");
         savedAttempts = new ArrayList<>();

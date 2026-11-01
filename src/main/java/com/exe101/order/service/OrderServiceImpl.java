@@ -15,12 +15,14 @@ import com.exe101.entity.OrderItem;
 import com.exe101.entity.OrderItemAsset;
 import com.exe101.entity.OrderShippingAddress;
 import com.exe101.entity.Payment;
+import com.exe101.entity.PhysicalFulfillment;
 import com.exe101.listing.model.ListingType;
 import com.exe101.listing.model.PurchaseItem;
 import com.exe101.listing.service.ListingService;
 import com.exe101.order.config.OrderProperties;
 import com.exe101.order.mapper.OrderEntityMapper;
 import com.exe101.order.model.CommitLine;
+import com.exe101.order.model.ItemFulfillment;
 import com.exe101.order.model.Order;
 import com.exe101.order.model.OrderAsset;
 import com.exe101.order.model.OrderCommit;
@@ -29,6 +31,7 @@ import com.exe101.order.model.OrderStatus;
 import com.exe101.order.model.PaymentSettlement;
 import com.exe101.order.model.PaymentStatus;
 import com.exe101.order.model.PaymentTarget;
+import com.exe101.order.repository.ItemFulfillmentRepository;
 import com.exe101.order.repository.OrderItemAssetRepository;
 import com.exe101.order.repository.OrderItemRepository;
 import com.exe101.order.repository.OrderRepository;
@@ -41,6 +44,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -61,6 +65,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderItemAssetRepository assetRepository;
     private final OrderShippingAddressRepository shippingRepository;
     private final PaymentRepository paymentRepository;
+    private final ItemFulfillmentRepository fulfillmentRepository;
     private final OrderEntityMapper mapper;
     private final CartService cartService;
     private final CartMapper cartMapper;
@@ -234,6 +239,14 @@ public class OrderServiceImpl implements OrderService {
         return assemble(List.of(entity)).getFirst();
     }
 
+    // Fulfillment of one item locks its whole Order first, the lock order payment, expiry and refunds use.
+    @Override
+    public Optional<Order> findLockedByItem(Long orderItemId) {
+        return itemRepository.findById(orderItemId)
+            .flatMap(item -> orderRepository.findWithLockByOrderId(item.getOrderId()))
+            .map(entity -> assemble(List.of(entity)).getFirst());
+    }
+
     // The Cart version was checked when the Cart was claimed. Lines, quantities and unit prices must equal the
     // recomputed preview, and so must the total, which also covers a changed tax rate or shipping fee.
     private boolean confirmed(OrderCommit commit, CheckoutPreview preview) {
@@ -312,10 +325,14 @@ public class OrderServiceImpl implements OrderService {
             .sorted(Comparator.comparingLong(asset -> asset.getId().getListingAssetId()))
             .collect(Collectors.groupingBy(asset -> asset.getId().getOrderItemId(),
                 Collectors.mapping(mapper::toModel, Collectors.toList())));
+        Map<Long, ItemFulfillment> fulfillments = itemIds.isEmpty() ? Map.of() : fulfillmentRepository
+            .findByOrderItemIdIn(itemIds).stream()
+            .collect(Collectors.toMap(PhysicalFulfillment::getOrderItemId, mapper::toModel));
         Map<Long, List<OrderLine>> lines = items.stream()
             .collect(Collectors.groupingBy(OrderItem::getOrderId, Collectors.mapping(item -> {
                 OrderLine line = mapper.toModel(item);
                 line.setAssets(assets.getOrDefault(item.getOrderItemId(), List.of()));
+                line.setFulfillment(fulfillments.get(item.getOrderItemId()));
 
                 return line;
             }, Collectors.toList())));

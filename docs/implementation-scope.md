@@ -51,6 +51,11 @@ F12 increment: direct digital items are granted their recorded files once, insid
 and buyers list them with `GET /purchases`, following [Digital entitlements](digital-entitlements.md). The physical
 grant at the close of the return window is added by F13/F15 through the same grant operation.
 
+F13 increment: Admin-only, forward-only fulfillment of each physical item from payment to delivery, and the
+included-file grant when the 48-hour return window closes with no open or approved return, follow
+[Physical fulfillment](physical-fulfillment.md). `FAILED`/`CANCELLED` and return requests belong to F15, the
+release of physical proceeds to F14.
+
 Requirements change recorded 31 October 2026: the site is the storefront of one
 Artist team, with no Platform Fee, held funds released to each Artist's own
 account, a 48-hour post-delivery return window, split Commission payments, and

@@ -20,6 +20,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -40,9 +41,9 @@ public class EntitlementServiceImpl implements EntitlementService {
     private final FileService fileService;
 
     // §5.3, §9.10–11: a paid Order grants each direct digital item the files recorded on it, once (§31.2). Physical
-    // items wait for their return window to close (amendment §C.10), which F13/F15 add. The caller holds the Order
-    // lock, so a concurrent grant for the same Order waits and then finds the entitlement; UQ(OrderItemId) is the
-    // database guard.
+    // items wait for their return window to close (amendment §C.10; grantIncluded). The caller holds the Order lock,
+    // so a concurrent grant for the same Order waits and then finds the entitlement; UQ(OrderItemId) is the database
+    // guard.
     @Override
     public List<Entitlement> grantDigital(Order order) {
         if (order.getStatus() != OrderStatus.PAID) {
@@ -59,6 +60,32 @@ public class EntitlementServiceImpl implements EntitlementService {
             granted.size());
 
         return granted;
+    }
+
+    // Amendment §C.10: a physical item's included files, once its return window has closed. The caller holds the
+    // Order lock and has checked the window; an item already granted is skipped, as in grantDigital.
+    @Override
+    public Optional<Entitlement> grantIncluded(Order order, Long orderItemId) {
+        if (order.getStatus() != OrderStatus.PAID) {
+            throw new IllegalStateException("Order is not paid: " + order.getOrderId());
+        }
+
+        OrderLine line = order.getItems().stream()
+            .filter(item -> item.getOrderItemId().equals(orderItemId))
+            .filter(item -> item.getListingType() == ListingType.PHYSICAL)
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("No physical item " + orderItemId + " in Order "
+                + order.getOrderId()));
+
+        if (repository.existsByOrderItemId(orderItemId)) {
+            return Optional.empty();
+        }
+
+        Entitlement granted = grant(order.getCustomerId(), line, now());
+        log.info("[ENTITLEMENT] - ACTION: grantIncluded: orderId: {}: orderItemId: {}: entitlementId: {}",
+            order.getOrderId(), orderItemId, granted.getEntitlementId());
+
+        return Optional.of(granted);
     }
 
     // Every entitlement belongs to one of the caller's own Orders, so the snapshots come from those Orders.

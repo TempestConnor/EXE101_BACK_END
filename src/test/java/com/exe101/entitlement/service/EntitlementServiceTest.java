@@ -152,6 +152,22 @@ class EntitlementServiceTest {
     }
 
     @Test
+    void already_granted_skipped_ok() {
+        // given
+        // The return window of the physical item has closed, but its files were already granted.
+        var order = order(orderId, OrderStatus.PAID, List.of(line(311L, ListingType.PHYSICAL, asset(40L, 200L))));
+        when(repository.existsByOrderItemId(311L)).thenReturn(true);
+
+        // when
+        var granted = service.grantIncluded(order, 311L);
+
+        // then
+        assertThat(granted).isEmpty();
+        verify(repository, never()).saveAndFlush(any());
+        verify(assetRepository, never()).saveAllAndFlush(anyList());
+    }
+
+    @Test
     void list_purchases_returns_own_entitlements_ok() {
         // given
         // The newer entitlement covers one of its item's two recorded files.

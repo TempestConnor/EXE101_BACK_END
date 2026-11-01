@@ -6,6 +6,8 @@ import com.exe101.entity.OrderItem;
 import com.exe101.entity.OrderItemAsset;
 import com.exe101.entity.OrderShippingAddress;
 import com.exe101.entity.Payment;
+import com.exe101.entity.PhysicalFulfillment;
+import com.exe101.order.model.ItemFulfillment;
 import com.exe101.order.model.Order;
 import com.exe101.order.model.OrderAsset;
 import com.exe101.order.model.OrderLine;
@@ -70,7 +72,14 @@ public interface OrderEntityMapper {
     @Mapping(source = "taxAmount", target = "withTaxAmount")
     @Mapping(source = "lineSubtotal", target = "withLineSubtotal")
     @Mapping(target = "withAssets", ignore = true)
+    @Mapping(target = "withFulfillment", ignore = true)
     OrderLine toModel(OrderItem entity);
+
+    @Mapping(source = "status", target = "withStatus")
+    @Mapping(source = "carrier", target = "withCarrier")
+    @Mapping(source = "trackingReference", target = "withTrackingReference")
+    @Mapping(source = "deliveredAt", target = "withDeliveredAt")
+    ItemFulfillment toModel(PhysicalFulfillment entity);
 
     @Mapping(source = "asset.listingAssetId", target = "id.listingAssetId")
     @Mapping(source = "orderItemId", target = "id.orderItemId")

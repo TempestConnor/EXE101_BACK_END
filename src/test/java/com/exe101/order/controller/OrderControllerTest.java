@@ -15,6 +15,7 @@ import com.exe101.customer.security.CustomerTokenIssuer;
 import com.exe101.customer.service.CustomerService;
 import com.exe101.listing.model.ListingType;
 import com.exe101.order.mapper.OrderMapperImpl;
+import com.exe101.order.model.ItemFulfillment;
 import com.exe101.order.model.Order;
 import com.exe101.order.model.OrderAsset;
 import com.exe101.order.model.OrderCommit;
@@ -206,6 +207,26 @@ class OrderControllerTest {
         mvc.perform(get("/orders/300").header("Authorization", "Bearer " + token))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.errorCode").value("ORDER_NOT_FOUND"));
+    }
+
+    @Test
+    void order_shows_fulfillment_ok() throws Exception {
+        // given
+        var token = customerToken();
+        var delivered = OffsetDateTime.of(2026, 11, 1, 9, 30, 0, 0, ZoneOffset.UTC);
+        var order = order();
+        order.setStatus(OrderStatus.PAID);
+        order.getItems().getFirst().setFulfillment(ItemFulfillment.builder().withStatus("DELIVERED")
+            .withCarrier("VNPost").withTrackingReference("EB123456789VN").withDeliveredAt(delivered).build());
+        when(orders.get(42L, 300L)).thenReturn(order);
+
+        // when / then
+        mvc.perform(get("/orders/300").header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items[0].fulfillment.status").value("DELIVERED"))
+            .andExpect(jsonPath("$.items[0].fulfillment.carrier").value("VNPost"))
+            .andExpect(jsonPath("$.items[0].fulfillment.trackingReference").value("EB123456789VN"))
+            .andExpect(jsonPath("$.items[0].fulfillment.deliveredAt").value("2026-11-01T09:30:00Z"));
     }
 
     private Order order() {

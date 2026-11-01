@@ -2,6 +2,7 @@ package com.exe101.payment.service;
 
 import com.exe101.entitlement.service.EntitlementService;
 import com.exe101.entity.PaymentAttempt;
+import com.exe101.fulfillment.service.FulfillmentService;
 import com.exe101.order.model.Order;
 import com.exe101.order.model.PaymentSettlement;
 import com.exe101.order.model.PaymentTarget;
@@ -40,6 +41,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final OrderService orderService;
     private final VnpayGateway gateway;
     private final EntitlementService entitlementService;
+    private final FulfillmentService fulfillmentService;
 
     // Every call is a new attempt (§12.4); only a provider-confirmed success has any effect on the Order.
     @Override
@@ -130,6 +132,7 @@ public class PaymentServiceImpl implements PaymentService {
         if (paid) {
             Order order = orderService.getLockedByPayment(attempt.getPaymentId());
             entitlementService.grantDigital(order);
+            fulfillmentService.start(order);
         }
 
         return switch (settlement) {
