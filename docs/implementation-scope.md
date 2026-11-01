@@ -91,6 +91,12 @@ the first half of the price and of the tax rounded up, following [Commission Quo
 The final payment waits for the Customer's approval (F18). Change Quotes, releasing Quote proceeds, the 7-day close and
 the license contract come later.
 
+F18 increment (priority 3): the commissioned Artist submits immutable versions (migration `0006`), and the Customer
+approves the latest one or asks for a revision, following [Commission delivery](commission-delivery.md). Approval
+returns the Commission to `AWAITING_PAYMENT` for the final 50%; the Customer cannot download the files until it is
+paid. Work stages are not recorded (rule change of 2 November 2026, amendment §D.13 and §D.15). The final payment,
+completion, Quote releases and the 7-day close belong to F18b; the review preview waits for its format.
+
 Requirements change recorded 31 October 2026: the site is the storefront of one
 Artist team, with no Platform Fee, held funds released to each Artist's own
 account, a 48-hour post-delivery return window, split Commission payments, and

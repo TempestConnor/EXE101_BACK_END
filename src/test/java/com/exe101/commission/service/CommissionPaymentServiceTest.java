@@ -332,6 +332,41 @@ class CommissionPaymentServiceTest {
         verify(eventRepository, never()).saveAndFlush(any());
     }
 
+    @Test
+    void payment_attempt_after_approval_ko() {
+        // given
+        // Approval returns the Commission to AWAITING_PAYMENT for the final 50% (F18), with the first one paid.
+        givenCommission("AWAITING_PAYMENT");
+        givenQuote("ACCEPTED", "100001.0000", "10001.0000");
+        givenPayment("SUCCEEDED", "55002.0000").setSucceededAt(now().minusDays(3));
+
+        // when / then
+        assertRejected(() -> service.preparePayment(customerId, commissionId, quoteId),
+            AppErrorMessage.QUOTE_NOT_PAYABLE);
+    }
+
+    @Test
+    void first_payment_success_after_approval_ko() {
+        // given
+        var commission = givenCommission("AWAITING_PAYMENT");
+        givenQuote("ACCEPTED", "100001.0000", "10001.0000");
+        var payment = givenSettling("SUCCEEDED", "55002.0000");
+        payment.setSucceededAt(now().minusDays(3));
+
+        // when
+        var result = service.settlePayment(paymentId, new BigDecimal("55002"), now());
+
+        // then
+        assertAll(
+            () -> assertThat(result.getSettlement()).isEqualTo(PaymentSettlement.ALREADY_PAID),
+            () -> assertThat(payment.getStatus()).isEqualTo("SUCCEEDED"),
+            () -> assertThat(commission.getStatus()).isEqualTo("AWAITING_PAYMENT")
+        );
+        verify(paymentRepository, never()).saveAndFlush(any());
+        verify(repository, never()).saveAndFlush(any());
+        verify(eventRepository, never()).saveAndFlush(any());
+    }
+
     // Every rejection happens before anything is written.
     private void assertRejected(Runnable action, AppErrorMessage error) {
         assertThatThrownBy(action::run)

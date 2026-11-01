@@ -43,8 +43,6 @@ public class CommissionServiceImpl implements CommissionService {
     private static String activeArtist = "ACTIVE";
     private static String requestedEvent = "REQUESTED";
     private static int maxTextLength = 5000;
-    private static int maxAttachments = 10;
-    private static long maxAttachmentBytes = 20L * 1024 * 1024;
     private final CommissionRepository repository;
     private final CommissionMessageRepository messageRepository;
     private final CommissionAttachmentRepository attachmentRepository;
@@ -61,12 +59,12 @@ public class CommissionServiceImpl implements CommissionService {
         String description = requireText(request.getDescription());
         List<FileUpload> uploads = request.getUploads() == null ? List.of() : request.getUploads();
 
-        if (uploads.size() > maxAttachments) {
+        if (uploads.size() > CommissionFiles.maxFiles) {
             throw new AppException(AppErrorMessage.COMMISSION_ATTACHMENT_LIMIT_REACHED);
         }
 
         List<NewFile> files = uploads.stream()
-            .map(this::toNewFile)
+            .map(CommissionFiles::toNewFile)
             .toList();
         Customer customer = customerService.getActive(userId);
         Artist artist = artistService.lockForCommission(request.getArtistId());
@@ -154,12 +152,12 @@ public class CommissionServiceImpl implements CommissionService {
 
     @Override
     public CommissionAttachment addAttachment(Long userId, Long commissionId, FileUpload upload) {
-        NewFile file = toNewFile(upload);
+        NewFile file = CommissionFiles.toNewFile(upload);
         com.exe101.entity.Commission entity = requireParticipant(userId,
             repository.findWithLockByCommissionId(commissionId));
         requireOpen(entity);
 
-        if (attachmentRepository.countByCommissionId(commissionId) >= maxAttachments) {
+        if (attachmentRepository.countByCommissionId(commissionId) >= CommissionFiles.maxFiles) {
             throw new AppException(AppErrorMessage.COMMISSION_ATTACHMENT_LIMIT_REACHED);
         }
 
@@ -212,30 +210,6 @@ public class CommissionServiceImpl implements CommissionService {
         if (CommissionStatus.valueOf(entity.getStatus()).isClosed()) {
             throw new AppException(AppErrorMessage.COMMISSION_CLOSED);
         }
-    }
-
-    private NewFile toNewFile(FileUpload upload) {
-        byte[] bytes = upload.getBytes();
-
-        if (bytes == null || bytes.length == 0) {
-            throw new AppException(AppErrorMessage.COMMISSION_INVALID);
-        }
-
-        if (bytes.length > maxAttachmentBytes) {
-            throw new AppException(AppErrorMessage.COMMISSION_ATTACHMENT_TOO_LARGE);
-        }
-
-        String contentType = CommissionFiles.contentType(upload.getOriginalName());
-
-        if (contentType == null) {
-            throw new AppException(AppErrorMessage.COMMISSION_ATTACHMENT_TYPE_NOT_SUPPORTED);
-        }
-
-        return NewFile.builder()
-            .withOriginalName(upload.getOriginalName())
-            .withContentType(contentType)
-            .withBytes(bytes)
-            .build();
     }
 
     private String requireText(String value) {

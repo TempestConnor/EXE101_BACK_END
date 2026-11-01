@@ -68,13 +68,15 @@ one installment have exactly one winner: the second finds the Payment `SUCCEEDED
 
 ## Deferred
 
-- **The final payment** (installment 2), due after the Customer approves the work (F18). With it come the Quote's
+- **The final payment** (installment 2), due after the Customer approves the work. Approval is done
+  ([Commission delivery](commission-delivery.md), F18) and returns the Commission to `AWAITING_PAYMENT`; paying it is F18b. With it come the Quote's
   `PAID` status, the release of the full amount at completion, and the 7-day close of an unpaid final payment, which
   releases installment 1 alone (§D.14).
 - **Releasing Quote proceeds.** `ArtistMovement` and the release path only know Order Items yet.
 - **Change Quotes** (§21, +10.000 VND per change, D10), including 0 VND changes, and how they are paid and refunded
   (amendment §E).
-- **Cancellation and refunds** of the first payment (§D.15, F19/F20).
+- **Cancellation and refunds** of the first payment (F19/F20). The §D.15 table no longer applies: the refund is an
+  agreed amount, capped at the held first payment ([Commission delivery](commission-delivery.md)).
 - **The license contract** (amendment §D.17).
 
 ## Known limits

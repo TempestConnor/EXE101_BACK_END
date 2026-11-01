@@ -41,11 +41,11 @@ It incorporates the customer-facing policy *Chính sách Nền tảng Commission
 12. **Payment before the sketch** (changed 2 November 2026; the Policy said no payment was due before sketch approval and must be changed to match). After a Quote is accepted, the first payment is due; the Artist starts the sketch only after it is confirmed. The sketch is the first part of the paid work, and the Customer may request unlimited sketch revisions. Either party may cancel before the first payment without a refund arising (§20.5). Implementation: [Commission Quotes](commission-quotes.md).
 13. **Two payments per Quote (D5, D18).** Replacing full payment up front (§12.2–3 for Commissions; §20.1–2):
     - **First payment:** 50% of the Quote price, due after the Quote is accepted (rule 12). Work, starting with the sketch, begins only after it is confirmed. It is held.
-    - **Work stages:** lineart, colouring and render are tracked, because refunds depend on them.
+    - **Work stages:** ~~lineart, colouring and render are tracked, because refunds depend on them.~~ Changed 2 November 2026: work stages are not recorded, because 3D work does not follow these 2D stages and each member may have their own refund policy (see rule 15). Implementation: [Commission delivery](commission-delivery.md).
     - **Review:** the Artist submits the final work; the Customer reviews it through a protected preview (format undecided) and cannot download it. Revisions remain unlimited (§22.8).
     - **Final payment:** the remaining 50% is due after the Customer approves. When it is confirmed, the files are unlocked, the Commission becomes `COMPLETED`, and the full amount is released to the Artist.
 14. **Unpaid final payment.** If the final payment is not confirmed within **7 days** of approval, the Commission closes as unpaid: the held first payment is released to the Artist and the final files stay locked. (Deadline chosen by the implementer at the user's delegation, 31 October 2026.)
-15. **Cancellation refunds by progress (D4, D21).** Replacing §25.3–5, an approved refund after cancellation is a percentage of the held first payment, according to the stage at cancellation:
+15. **Cancellation refunds by progress (D4, D21).** *Changed 2 November 2026:* the table below no longer applies. A refund after cancellation is the amount the Customer and the Artist agree, under that Artist's own policy, reviewed by the Admin and never more than the held first payment; how the Admin checks it is decided with F20. The system keeps no record of work progress, a declared weakness ([Commission delivery](commission-delivery.md#known-limits)). The original rule: replacing §25.3–5, an approved refund after cancellation is a percentage of the held first payment, according to the stage at cancellation:
 
     | Stage at cancellation | Refund |
     | --- | --- |
@@ -62,7 +62,7 @@ It incorporates the customer-facing policy *Chính sách Nền tảng Commission
 ### E. Not yet decided
 
 - **Accounts and members:** whether a deactivated member can be reactivated; what happens to a leaving member's pending requests/Quotes, unfinished work and held funds; whether the Admin, who may also be a team Artist, remains the dispute reviewer (§26).
-- **Commission payments:** rounding for percentage refunds; how change Quotes are paid (in full or split) and whether they count toward the refund base; whether the refund percentages apply when the Artist cancels.
+- **Commission payments:** rounding for percentage refunds (moot while refunds are agreed amounts, rule 15); how the Admin checks an agreed refund amount (F20); how change Quotes are paid (in full or split) and whether they count toward the refund base; whether the refund percentages apply when the Artist cancels.
 - **Physical returns:** the return-shipping procedure; whether 48 hours satisfies Luật 122/2025 Đ.16.2.d and consumer-protection law (Luật 19/2023/QH15, not yet reviewed).
 - **Previews and contracts:** the review preview format; contract fields (term, exclusivity, territory, derivative works, liability, signature method).
 - **Operations:** settled for the class release by amendment F below (VNPay; a release is created at each milestone and transferred by the Admin). How held funds are held at a real launch still needs a registered business and its account (F.2).

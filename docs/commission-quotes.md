@@ -8,8 +8,9 @@ come with the next increment, F17b.
 
 - **Payment flow (amendment §D.12–13, changed 2 November 2026):** one Quote holds the agreed total price. Accept
   Quote → pay 50% of it → sketch, then lineart, colouring and render → the Customer approves the final work → pay the
-  other 50%. The sketch is part of the paid work, so the Commission has no sketch status. Under the §D.15 refund table
-  the sketch counts as "paid, work not started" until lineart begins. The customer-facing Policy said "no payment
+  other 50%. The sketch is part of the paid work, so the Commission has no sketch status. Work stages are not recorded at
+  all (changed 2 November 2026, [Commission delivery](commission-delivery.md)), and §D.15's fixed refund table no
+  longer applies. The customer-facing Policy said "no payment
   before sketch approval", and it must be changed the same way; that text is outside this repository.
 - **Status after acceptance:** the Commission moves to `AWAITING_PAYMENT` (the first 50%). No migration.
 - **Initial price (Q02):** the price must be whole VND above 0. An initial Quote of 0 VND is refused with
