@@ -10,9 +10,10 @@ allowed-tools: Bash(git status:*), Bash(git fetch:*), Bash(git branch:*), Bash(g
 
 Requested feature (may be empty): `$ARGUMENTS`
 
-Work from **committed** code only. Do not write production code or tests in this
-command; its output is a branch and a kickoff brief. The feature is implemented
-afterwards and committed automatically (see the end of section 5, item 8).
+Work from **committed** code only. Do not write production code or tests until the
+kickoff questions are answered (section 5). Once they are, continue straight into
+implementation in the same run (section 6) and commit automatically (see the end of
+section 5, item 8).
 
 ## 1. Preconditions
 
@@ -160,3 +161,20 @@ decision in the feature's doc (`docs/<feature>.md`, under "Approved policies"), 
 the matching Status in section D of `docs/EXE101_Features_Specification.md` with a link
 to that doc, and mark the inline **Needs Clarification** note resolved. A decision
 recorded only in the chat will be asked again by the next run.
+
+## 6. Implement immediately after the answers
+
+Do not end the turn after the AskUserQuestion call returns, and do not ask for a
+separate "go". In the same run:
+
+- **All answered without overrides or changes:** acknowledge the decisions in a
+  line or two, then start implementing at once — production code, the feature doc
+  and spec updates, then exactly the approved tests, then `.\mvnw.cmd clean package`
+  and the automatic commit from item 8.
+- **"Override some" or "Changes needed" chosen:** ask only for those specifics
+  (one AskUserQuestion, or a short question if free text is needed), then proceed
+  as above once answered.
+- **A Blocking answer pauses the feature** (for example "do another feature
+  first"): stop and report; do not implement.
+
+Implementation follows `AGENTS.md` and the topic docs, as for any feature.
