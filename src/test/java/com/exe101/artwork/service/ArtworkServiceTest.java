@@ -383,6 +383,7 @@ class ArtworkServiceTest {
     @Test
     void publish_artwork_ok() {
         // given
+        when(artistService.lockForPublish(3L)).thenReturn(artist("ACTIVE"));
         var existing = artwork(3L, "DRAFT", null);
         when(artistService.getByUserId(42L)).thenReturn(artist("ACTIVE"));
         when(repository.findById(10L)).thenReturn(Optional.of(existing));
@@ -415,6 +416,7 @@ class ArtworkServiceTest {
     @Test
     void publish_artwork_without_media_ko() {
         // given
+        when(artistService.lockForPublish(3L)).thenReturn(artist("ACTIVE"));
         when(artistService.getByUserId(42L)).thenReturn(artist("ACTIVE"));
         when(repository.findById(10L)).thenReturn(Optional.of(artwork(3L, "DRAFT", null)));
         when(mediaRepository.countByArtworkId(10L)).thenReturn(0L);
@@ -428,6 +430,7 @@ class ArtworkServiceTest {
     @Test
     void publish_artwork_inactive_artist_ko() {
         // given
+        when(artistService.lockForPublish(3L)).thenReturn(artist("SUSPENDED"));
         when(artistService.getByUserId(42L)).thenReturn(artist("SUSPENDED"));
         when(repository.findById(10L)).thenReturn(Optional.of(artwork(3L, "DRAFT", null)));
 

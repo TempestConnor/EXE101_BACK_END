@@ -278,6 +278,7 @@ class ListingServiceTest {
     @Test
     void add_listing_to_published_artwork_keeps_existing_listings_ok() {
         // given
+        when(artistService.lockForPublish(3L)).thenReturn(artist("ACTIVE"));
         var existing = physical(21L, "PUBLISHED", firstPublished);
         ownedArtwork(ArtworkStatus.PUBLISHED);
         savesListings();
@@ -307,6 +308,7 @@ class ListingServiceTest {
     @Test
     void publish_digital_listing_ok() {
         // given
+        when(artistService.lockForPublish(3L)).thenReturn(artist("ACTIVE"));
         ownedListing(digital("DRAFT", null), ArtworkStatus.PUBLISHED, "ACTIVE");
         when(assetRepository.findByListingIdInOrderBySortOrderAsc(List.of(20L))).thenReturn(List.of(asset()));
         when(fileService.hasContent(100L)).thenReturn(true);
@@ -327,6 +329,7 @@ class ListingServiceTest {
     @Test
     void publish_digital_listing_without_assets_ko() {
         // given
+        when(artistService.lockForPublish(3L)).thenReturn(artist("ACTIVE"));
         ownedListing(digital("DRAFT", null), ArtworkStatus.PUBLISHED, "ACTIVE");
 
         // when / then
@@ -339,6 +342,7 @@ class ListingServiceTest {
     @Test
     void publish_physical_listing_without_included_file_ko() {
         // given
+        when(artistService.lockForPublish(3L)).thenReturn(artist("ACTIVE"));
         ownedListing(physical(20L, "DRAFT", null), ArtworkStatus.PUBLISHED, "ACTIVE");
 
         // when / then
@@ -351,6 +355,7 @@ class ListingServiceTest {
     @Test
     void publish_listing_file_bytes_missing_ko() {
         // given
+        when(artistService.lockForPublish(3L)).thenReturn(artist("ACTIVE"));
         ownedListing(digital("DRAFT", null), ArtworkStatus.PUBLISHED, "ACTIVE");
         when(assetRepository.findByListingIdInOrderBySortOrderAsc(List.of(20L))).thenReturn(List.of(asset()));
         when(fileService.hasContent(100L)).thenReturn(false);
@@ -365,6 +370,7 @@ class ListingServiceTest {
     @Test
     void publish_listing_artist_not_active_ko() {
         // given
+        when(artistService.lockForPublish(3L)).thenReturn(artist("SUSPENDED"));
         var draft = digital("DRAFT", null);
         ownedListing(draft, ArtworkStatus.PUBLISHED, "SUSPENDED");
         when(artistService.get(3L)).thenReturn(artist("SUSPENDED"));
@@ -384,6 +390,7 @@ class ListingServiceTest {
     @Test
     void publish_listing_artwork_not_published_ko() {
         // given
+        when(artistService.lockForPublish(3L)).thenReturn(artist("ACTIVE"));
         ownedListing(digital("DRAFT", null), ArtworkStatus.UNLISTED, "ACTIVE");
 
         // when / then
@@ -397,6 +404,7 @@ class ListingServiceTest {
     @Test
     void republish_listing_keeps_first_published_at_ok() {
         // given
+        when(artistService.lockForPublish(3L)).thenReturn(artist("ACTIVE"));
         ownedListing(digital("UNLISTED", firstPublished), ArtworkStatus.PUBLISHED, "ACTIVE");
         when(assetRepository.findByListingIdInOrderBySortOrderAsc(List.of(20L))).thenReturn(List.of(asset()));
         when(fileService.hasContent(100L)).thenReturn(true);
@@ -1016,6 +1024,7 @@ class ListingServiceTest {
     @Test
     void publish_while_review_required_ko() {
         // given
+        when(artistService.lockForPublish(3L)).thenReturn(artist("ACTIVE"));
         ownedListing(flagged("DRAFT"), ArtworkStatus.PUBLISHED, "ACTIVE");
 
         // when / then

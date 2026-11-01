@@ -77,8 +77,9 @@ New error codes: `LISTING_INVALID` (400); `LISTING_NOT_FOUND`, `LISTING_ASSET_NO
 ## Known limits
 
 - Uploads are read fully into memory; a 200 MB file needs that much heap per request. Downloads are streamed (F08).
-- Publishing does not lock the Artist Profile row. Deactivation (priority 2) is not built yet, and Order
-  creation must re-check availability in its own transaction anyway.
+- Publishing takes a shared lock on the Artist Profile row, so nothing is published after a deactivation commits
+  ([Artist deactivation](artist-deactivation.md)). Order creation still re-checks availability in its own
+  transaction.
 - If a transaction rolls back after the file bytes were written, the bytes stay on disk until the F08 orphan sweep
   removes them ([Protected files](protected-files.md)).
 - Lists are not paged.

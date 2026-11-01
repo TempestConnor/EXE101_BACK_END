@@ -2,7 +2,9 @@ package com.exe101.artist.service;
 
 import com.exe101.artist.mapper.ArtistEntityMapper;
 import com.exe101.artist.model.Artist;
+import com.exe101.artist.model.ArtistDeactivation;
 import com.exe101.artist.model.ArtistGrant;
+import com.exe101.artist.repository.ArtistDeactivationRepository;
 import com.exe101.artist.repository.ArtistRepository;
 import com.exe101.audit.model.AuditEntry;
 import com.exe101.audit.service.AuditService;
@@ -12,6 +14,7 @@ import com.exe101.common.persistence.DatabaseErrors;
 import com.exe101.customer.model.Customer;
 import com.exe101.customer.service.CustomerService;
 import com.exe101.entity.ArtistProfile;
+import com.exe101.entity.ArtistSuspension;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Collection;
@@ -28,9 +31,14 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class ArtistServiceImpl implements ArtistService {
     private static String activeStatus = "ACTIVE";
+    // The schema's SUSPENDED status represents deactivation (amendment A.4).
+    private static String deactivatedStatus = "SUSPENDED";
     private static String grantAction = "ARTIST_PROFILE_GRANTED";
+    private static String deactivateAction = "ARTIST_DEACTIVATED";
+    private static String reinstateAction = "ARTIST_REINSTATED";
     private static String artistTarget = "ArtistProfile";
     private final ArtistRepository repository;
+    private final ArtistDeactivationRepository deactivationRepository;
     private final ArtistEntityMapper mapper;
     private final CustomerService customerService;
     private final AuditService auditService;
@@ -48,7 +56,7 @@ public class ArtistServiceImpl implements ArtistService {
         entity.setStatus(activeStatus);
         entity.setAcceptingCommissions(false);
         entity.setAuthorizedByStaffId(staffId);
-        entity.setCreatedAt(OffsetDateTime.now(ZoneOffset.UTC).withNano(0));
+        entity.setCreatedAt(now());
         ArtistProfile saved;
 
         try {
@@ -100,6 +108,92 @@ public class ArtistServiceImpl implements ArtistService {
         return repository.findByArtistIdInOrderByArtistIdAsc(artistIds).stream()
             .map(mapper::toModel)
             .toList();
+    }
+
+    @Override
+    public Artist lockForPublish(Long artistId) {
+        ArtistProfile entity = repository.findWithSharedLockByArtistId(artistId)
+            .orElseThrow(() -> new AppException(AppErrorMessage.ARTIST_PROFILE_REQUIRED));
+
+        return mapper.toModel(entity);
+    }
+
+    // Under the Artist's row lock, so an Order or publication in progress commits first and later ones see the
+    // deactivation. Listings are not rewritten: availability is computed from the status (F03).
+    @Override
+    public ArtistDeactivation deactivate(Long staffId, Long artistId, String reason) {
+        ArtistProfile entity = requireLocked(artistId);
+
+        if (!activeStatus.equals(entity.getStatus())) {
+            throw new AppException(AppErrorMessage.ARTIST_ALREADY_DEACTIVATED);
+        }
+
+        ArtistSuspension record = new ArtistSuspension(artistId, now(), reason.strip(), staffId);
+        ArtistSuspension saved;
+
+        try {
+            saved = deactivationRepository.saveAndFlush(record);
+        } catch (DataIntegrityViolationException exception) {
+            if (DatabaseErrors.isDuplicateKey(exception)) {
+                throw new AppException(AppErrorMessage.ARTIST_ALREADY_DEACTIVATED);
+            }
+
+            throw exception;
+        }
+
+        entity.setStatus(deactivatedStatus);
+        repository.saveAndFlush(entity);
+
+        AuditEntry audit = AuditEntry.builder()
+            .withStaffId(staffId)
+            .withActionType(deactivateAction)
+            .withTargetType(artistTarget)
+            .withTargetId(artistId)
+            .withReason(saved.getReason())
+            .withDetails("deactivationId=" + saved.getSuspensionId())
+            .build();
+        auditService.record(audit);
+        log.info("[ARTIST] - ACTION: deactivate: artistId: {}", artistId);
+
+        return mapper.toModel(saved, entity.getStatus());
+    }
+
+    @Override
+    public ArtistDeactivation reinstate(Long staffId, Long artistId, String reason) {
+        ArtistProfile entity = requireLocked(artistId);
+
+        if (!deactivatedStatus.equals(entity.getStatus())) {
+            throw new AppException(AppErrorMessage.ARTIST_NOT_DEACTIVATED);
+        }
+
+        ArtistSuspension record = deactivationRepository.findByArtistIdAndClosedAtIsNull(artistId)
+            .orElseThrow(() -> new IllegalStateException("Deactivated Artist " + artistId + " has no open record"));
+        record.setClosedAt(now());
+        ArtistSuspension saved = deactivationRepository.saveAndFlush(record);
+        entity.setStatus(activeStatus);
+        repository.saveAndFlush(entity);
+
+        AuditEntry audit = AuditEntry.builder()
+            .withStaffId(staffId)
+            .withActionType(reinstateAction)
+            .withTargetType(artistTarget)
+            .withTargetId(artistId)
+            .withReason(reason.strip())
+            .withDetails("deactivationId=" + saved.getSuspensionId())
+            .build();
+        auditService.record(audit);
+        log.info("[ARTIST] - ACTION: reinstate: artistId: {}", artistId);
+
+        return mapper.toModel(saved, entity.getStatus());
+    }
+
+    private ArtistProfile requireLocked(Long artistId) {
+        return repository.findWithLockByArtistId(artistId)
+            .orElseThrow(() -> new AppException(AppErrorMessage.ARTIST_NOT_FOUND));
+    }
+
+    private OffsetDateTime now() {
+        return OffsetDateTime.now(ZoneOffset.UTC).withNano(0);
     }
 
     private String blankToNull(String value) {

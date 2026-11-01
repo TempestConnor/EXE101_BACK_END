@@ -1,6 +1,7 @@
 package com.exe101.artist.service;
 
 import com.exe101.artist.model.Artist;
+import com.exe101.artist.model.ArtistDeactivation;
 import com.exe101.artist.model.ArtistGrant;
 import java.util.Collection;
 import java.util.List;
@@ -13,4 +14,10 @@ public interface ArtistService {
     Artist getByUserId(Long userId);
 
     List<Artist> lockForPurchase(Collection<Long> artistIds);
+
+    Artist lockForPublish(Long artistId);
+
+    ArtistDeactivation deactivate(Long staffId, Long artistId, String reason);
+
+    ArtistDeactivation reinstate(Long staffId, Long artistId, String reason);
 }

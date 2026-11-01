@@ -1,8 +1,10 @@
 package com.exe101.artist.mapper;
 
 import com.exe101.artist.model.Artist;
+import com.exe101.artist.model.ArtistDeactivation;
 import com.exe101.artist.model.ArtistGrant;
 import com.exe101.entity.ArtistProfile;
+import com.exe101.entity.ArtistSuspension;
 import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -23,4 +25,13 @@ public interface ArtistEntityMapper {
     @Mapping(source = "authorizedByStaffId", target = "withAuthorizedByStaffId")
     @Mapping(source = "createdAt", target = "withCreatedAt")
     Artist toModel(ArtistProfile entity);
+
+    @Mapping(source = "record.suspensionId", target = "withDeactivationId")
+    @Mapping(source = "record.artistId", target = "withArtistId")
+    @Mapping(source = "artistStatus", target = "withArtistStatus")
+    @Mapping(source = "record.startedAt", target = "withStartedAt")
+    @Mapping(source = "record.closedAt", target = "withClosedAt")
+    @Mapping(source = "record.reason", target = "withReason")
+    @Mapping(source = "record.staffId", target = "withStaffId")
+    ArtistDeactivation toModel(ArtistSuspension record, String artistStatus);
 }

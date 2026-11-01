@@ -164,7 +164,7 @@ public class ListingServiceImpl implements ListingService {
         }
 
         if (change.getStatus() == ListingStatus.PUBLISHED) {
-            requireActive(artist);
+            requireActive(artistService.lockForPublish(artist.getArtistId()));
         }
 
         applyTransition(entity, change.getStatus(), artwork);
@@ -293,7 +293,7 @@ public class ListingServiceImpl implements ListingService {
         Artist artist = artistService.get(artwork.getArtistId());
 
         if (change.getStatus() == ListingStatus.PUBLISHED) {
-            requireActive(artist);
+            requireActive(artistService.lockForPublish(artist.getArtistId()));
         }
 
         String previous = entity.getStatus();

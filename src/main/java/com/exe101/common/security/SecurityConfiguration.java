@@ -55,6 +55,8 @@ public class SecurityConfiguration {
                 .requestMatchers(HttpMethod.POST, "/staff/login").permitAll()
                 .requestMatchers(HttpMethod.GET, "/customers/me").hasRole("CUSTOMER")
                 .requestMatchers(HttpMethod.POST, "/artists").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/admin/artists/*/deactivation", "/admin/artists/*/reinstatement")
+                    .hasRole("ADMIN")
                 .requestMatchers("/addresses", "/addresses/*").hasRole("CUSTOMER")
                 .requestMatchers(HttpMethod.GET, "/provinces/supported").hasRole("CUSTOMER")
                 .requestMatchers(HttpMethod.GET, "/provinces").hasRole("ADMIN")

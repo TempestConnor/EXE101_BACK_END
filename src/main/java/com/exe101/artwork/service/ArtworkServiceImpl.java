@@ -133,7 +133,7 @@ public class ArtworkServiceImpl implements ArtworkService {
         }
 
         if (change.getStatus() == ArtworkStatus.PUBLISHED) {
-            requireActive(artist);
+            requireActive(artistService.lockForPublish(artist.getArtistId()));
         }
 
         applyTransition(entity, change.getStatus());
@@ -266,7 +266,7 @@ public class ArtworkServiceImpl implements ArtworkService {
         requireEditable(entity);
 
         if (change.getStatus() == ArtworkStatus.PUBLISHED) {
-            requireActive(artistService.get(entity.getArtistId()));
+            requireActive(artistService.lockForPublish(entity.getArtistId()));
         }
 
         String previous = entity.getStatus();

@@ -1,8 +1,10 @@
 package com.exe101.artist.mapper;
 
 import com.exe101.artist.dto.ArtistDTO;
+import com.exe101.artist.dto.ArtistDeactivationDTO;
 import com.exe101.artist.dto.GrantArtistDTO;
 import com.exe101.artist.model.Artist;
+import com.exe101.artist.model.ArtistDeactivation;
 import com.exe101.artist.model.ArtistGrant;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -16,4 +18,6 @@ public interface ArtistMapper {
     ArtistGrant toModel(GrantArtistDTO dto);
 
     ArtistDTO toDto(Artist artist);
+
+    ArtistDeactivationDTO toDto(ArtistDeactivation deactivation);
 }

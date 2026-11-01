@@ -69,6 +69,11 @@ shipping refunded once at the approval that completes the physical portion, foll
 sends each refund by hand and records its outcome; every refund is posted to the ledger (migration `0003`). Refunds of
 F11 exception payments stay manual and unrecorded; Commission refunds belong to priority 3.
 
+F03 increment (priority 2): Admin-only, audited deactivation and reinstatement of Artists, stored in the existing
+`SUSPENDED` status and `ArtistSuspension` rows, with purchase availability computed from the status and held funds
+unchanged, follow [Artist deactivation](artist-deactivation.md). Pending Commission requests and Quotes (Q05) belong
+to priority 3.
+
 Requirements change recorded 31 October 2026: the site is the storefront of one
 Artist team, with no Platform Fee, held funds released to each Artist's own
 account, a 48-hour post-delivery return window, split Commission payments, and
@@ -159,10 +164,9 @@ default answer to these questions.
 ## Priority 2: Artist deactivation
 
 Under the 31 October amendment, suspension is replaced by member deactivation.
-Whether deactivation can be reversed is unresolved; do not implement reactivation
-until it is decided. The existing `SUSPENDED` status and suspension history
-structures are the presumed representation, subject to confirmation when this
-priority starts.
+Decided 2 November 2026: the Admin may reinstate a deactivated member, and the
+existing `SUSPENDED` status and suspension history structures are the
+representation ([Artist deactivation](artist-deactivation.md)).
 
 After the standard Order workflow, implement the reduced F03 workflow:
 
