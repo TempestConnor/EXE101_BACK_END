@@ -1,5 +1,6 @@
 package com.exe101.proceeds.service;
 
+import com.exe101.artist.model.Artist;
 import com.exe101.artist.service.ArtistService;
 import com.exe101.audit.model.AuditEntry;
 import com.exe101.audit.service.AuditService;
@@ -107,6 +108,34 @@ class ProceedsServiceTest {
             savedLines.add(saved);
             return saved;
         });
+    }
+
+    @Test
+    void list_own_includes_quote_proceeds_ok() {
+        // given
+        var artistUserId = 50L;
+        when(artistService.getByUserId(artistUserId)).thenReturn(Artist.builder()
+            .withArtistId(physicalArtistId)
+            .withUserId(artistUserId)
+            .build());
+        var quoteProceeds = new ArtistProceeds(physicalArtistId, null, 21L, new BigDecimal("50001.0000"), "VND",
+            "HELD", null, null);
+        quoteProceeds.setProceedsId(proceedsId);
+        quoteProceeds.setInstallment(1);
+        when(repository.findByArtistIdOrderByProceedsIdDesc(physicalArtistId)).thenReturn(List.of(quoteProceeds));
+
+        // when
+        var result = service.listOwn(artistUserId);
+
+        // then
+        assertThat(result).singleElement().satisfies(proceeds -> assertAll(
+            () -> assertThat(proceeds.getProceedsId()).isEqualTo(proceedsId),
+            () -> assertThat(proceeds.getOrderItemId()).isNull(),
+            () -> assertThat(proceeds.getQuoteId()).isEqualTo(21L),
+            () -> assertThat(proceeds.getInstallment()).isEqualTo(1),
+            () -> assertThat(proceeds.getAmount()).isEqualTo(new BigDecimal("50001.0000")),
+            () -> assertThat(proceeds.getStatus()).isEqualTo(ProceedsStatus.HELD)
+        ));
     }
 
     @Test

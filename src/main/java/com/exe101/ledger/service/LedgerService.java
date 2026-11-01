@@ -1,5 +1,6 @@
 package com.exe101.ledger.service;
 
+import com.exe101.commission.model.QuoteSettlement;
 import com.exe101.ledger.model.ArtistMovement;
 import com.exe101.ledger.model.Reconciliation;
 import com.exe101.ledger.model.RefundMovement;
@@ -9,6 +10,8 @@ import java.time.OffsetDateTime;
 
 public interface LedgerService {
     void recordPayment(Order order);
+
+    void recordQuotePayment(QuoteSettlement settlement);
 
     void recordUnapplied(Long providerEventId, BigDecimal amount, OffsetDateTime receivedAt);
 

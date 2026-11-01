@@ -1,10 +1,14 @@
 package com.exe101.payment.service;
 
+import com.exe101.commission.model.QuotePayment;
+import com.exe101.commission.model.QuoteSettlement;
+import com.exe101.commission.service.CommissionPaymentService;
 import com.exe101.entitlement.service.EntitlementService;
 import com.exe101.entity.PaymentAttempt;
 import com.exe101.entity.ProviderEvent;
 import com.exe101.fulfillment.service.FulfillmentService;
 import com.exe101.ledger.service.LedgerService;
+import com.exe101.order.config.OrderProperties;
 import com.exe101.order.model.Order;
 import com.exe101.order.model.PaymentSettlement;
 import com.exe101.order.model.PaymentTarget;
@@ -47,6 +51,8 @@ public class PaymentServiceImpl implements PaymentService {
     private final FulfillmentService fulfillmentService;
     private final ProceedsService proceedsService;
     private final LedgerService ledgerService;
+    private final CommissionPaymentService commissionPaymentService;
+    private final OrderProperties orderProperties;
 
     // Every call is a new attempt (§12.4); only a provider-confirmed success has any effect on the Order.
     @Override
@@ -63,8 +69,8 @@ public class PaymentServiceImpl implements PaymentService {
             .withCreatedAt(createdAt)
             .build();
         PaymentAttempt saved = attemptRepository.saveAndFlush(mapper.toEntity(attempt));
-        String paymentUrl = gateway.paymentUrl(attemptRef, payment.getAmount(), orderId, createdAt,
-            order.getExpiresAt(), clientIp);
+        String paymentUrl = gateway.paymentUrl(attemptRef, payment.getAmount(), "Thanh toan don hang " + orderId,
+            createdAt, order.getExpiresAt(), clientIp);
         log.info("[PAYMENT] - ACTION: start: userId: {}: orderId: {}: attemptId: {}", userId, orderId,
             saved.getAttemptId());
 
@@ -73,6 +79,37 @@ public class PaymentServiceImpl implements PaymentService {
             .withOrderId(orderId)
             .withPaymentUrl(paymentUrl)
             .withExpiresAt(order.getExpiresAt())
+            .build();
+    }
+
+    // A Quote has no payment window; each VNPay page stays open as long as an Order's would (approved 2 November
+    // 2026). The Payment is prepared under the Commission lock, and the attempt joins its transaction.
+    @Override
+    public PaymentStart startQuote(Long userId, Long commissionId, Long quoteId, String clientIp) {
+        QuotePayment payment = commissionPaymentService.preparePayment(userId, commissionId, quoteId);
+        OffsetDateTime createdAt = now();
+        OffsetDateTime expiresAt = createdAt.plus(orderProperties.paymentWindow());
+        String attemptRef = UUID.randomUUID().toString().replace("-", "");
+        Attempt attempt = Attempt.builder()
+            .withPaymentId(payment.getPaymentId())
+            .withProviderName(VnpayGateway.providerName)
+            .withProviderAttemptRef(attemptRef)
+            .withStatus(AttemptStatus.INITIATED)
+            .withCreatedAt(createdAt)
+            .build();
+        PaymentAttempt saved = attemptRepository.saveAndFlush(mapper.toEntity(attempt));
+        String paymentUrl = gateway.paymentUrl(attemptRef, payment.getAmount(), "Thanh toan commission "
+            + commissionId, createdAt, expiresAt, clientIp);
+        log.info("[PAYMENT] - ACTION: startQuote: userId: {}: quoteId: {}: attemptId: {}", userId, quoteId,
+            saved.getAttemptId());
+
+        return PaymentStart.builder()
+            .withAttemptId(saved.getAttemptId())
+            .withCommissionId(commissionId)
+            .withQuoteId(quoteId)
+            .withAmount(payment.getAmount())
+            .withPaymentUrl(paymentUrl)
+            .withExpiresAt(expiresAt)
             .build();
     }
 
@@ -125,8 +162,19 @@ public class PaymentServiceImpl implements PaymentService {
             return record(notification, attempt, receivedAt, EventOutcome.PROCESSED, VnpayReply.CONFIRMED);
         }
 
-        PaymentSettlement settlement = orderService.settlePayment(attempt.getPaymentId(), notification.getAmount(),
-            receivedAt);
+        // The Payment pays an Order or a Quote installment, never both (CK_Payment); a Quote locks its Commission where
+        // an Order locks the Order, each before the Payment.
+        QuoteSettlement quote = null;
+        PaymentSettlement settlement;
+
+        if (commissionPaymentService.isQuotePayment(attempt.getPaymentId())) {
+            quote = commissionPaymentService.settlePayment(attempt.getPaymentId(), notification.getAmount(),
+                receivedAt);
+            settlement = quote.getSettlement();
+        } else {
+            settlement = orderService.settlePayment(attempt.getPaymentId(), notification.getAmount(), receivedAt);
+        }
+
         boolean paid = settlement == PaymentSettlement.PAID;
         attempt.setStatus(paid ? AttemptStatus.SUCCEEDED.name() : AttemptStatus.EXCEPTION.name());
         attempt.setProviderTransactionRef(notification.getTransactionRef());
@@ -135,7 +183,10 @@ public class PaymentServiceImpl implements PaymentService {
 
         // Side effects of a confirmed payment share its transaction; an exception never grants or holds anything
         // (§12.12).
-        if (paid) {
+        if (paid && quote != null) {
+            ledgerService.recordQuotePayment(quote);
+            proceedsService.holdQuote(quote);
+        } else if (paid) {
             Order order = orderService.getLockedByPayment(attempt.getPaymentId());
             entitlementService.grantDigital(order);
             fulfillmentService.start(order);

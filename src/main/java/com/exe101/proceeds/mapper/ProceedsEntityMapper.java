@@ -12,14 +12,14 @@ import org.mapstruct.ReportingPolicy;
 
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.ERROR)
 public interface ProceedsEntityMapper {
-    // Order Item proceeds only; Quote proceeds come with Commissions.
     @Mapping(target = "proceedsId", ignore = true)
-    @Mapping(target = "quoteId", ignore = true)
     ArtistProceeds toEntity(Proceeds proceeds);
 
     @Mapping(source = "proceedsId", target = "withProceedsId")
     @Mapping(source = "artistId", target = "withArtistId")
     @Mapping(source = "orderItemId", target = "withOrderItemId")
+    @Mapping(source = "quoteId", target = "withQuoteId")
+    @Mapping(source = "installment", target = "withInstallment")
     @Mapping(source = "amount", target = "withAmount")
     @Mapping(source = "currencyCode", target = "withCurrencyCode")
     @Mapping(source = "status", target = "withStatus")

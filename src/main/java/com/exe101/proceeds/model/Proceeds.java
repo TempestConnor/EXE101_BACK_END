@@ -8,7 +8,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-// What one Order Item earns its Artist: the snapshotted proceeds, held until the item's release milestone.
+// What one Order Item or one Quote installment earns its Artist: the snapshotted proceeds, held until its release
+// milestone.
 @Getter
 @Setter
 @NoArgsConstructor
@@ -18,6 +19,8 @@ public class Proceeds {
     private Long proceedsId;
     private Long artistId;
     private Long orderItemId;
+    private Long quoteId;
+    private Integer installment;
     private BigDecimal amount;
     private String currencyCode;
     private ProceedsStatus status;

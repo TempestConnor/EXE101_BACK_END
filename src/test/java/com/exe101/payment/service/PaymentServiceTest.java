@@ -3,6 +3,8 @@ package com.exe101.payment.service;
 import com.exe101.address.service.AddressService;
 import com.exe101.cart.mapper.CartMapperImpl;
 import com.exe101.cart.service.CartService;
+import com.exe101.commission.model.QuoteSettlement;
+import com.exe101.commission.service.CommissionPaymentService;
 import com.exe101.common.error.AppErrorMessage;
 import com.exe101.common.error.AppException;
 import com.exe101.customer.service.CustomerService;
@@ -18,6 +20,7 @@ import com.exe101.order.config.OrderProperties;
 import com.exe101.order.mapper.OrderEntityMapperImpl;
 import com.exe101.order.model.Order;
 import com.exe101.order.model.OrderStatus;
+import com.exe101.order.model.PaymentSettlement;
 import com.exe101.order.repository.ItemFulfillmentRepository;
 import com.exe101.order.repository.ItemRefundRepository;
 import com.exe101.order.repository.OrderItemAssetRepository;
@@ -71,6 +74,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -125,6 +129,8 @@ class PaymentServiceTest {
     private ProceedsService proceedsService;
     @Mock
     private LedgerService ledgerService;
+    @Mock
+    private CommissionPaymentService commissionPaymentService;
     private PaymentServiceImpl service;
     private MarketplaceOrder order;
     private Payment payment;
@@ -134,15 +140,16 @@ class PaymentServiceTest {
 
     @BeforeEach
     void setUp() {
+        var orderProperties = new OrderProperties(Duration.ofMinutes(30), Duration.ofMinutes(1));
         var orderService = new OrderServiceImpl(orderRepository, itemRepository, assetRepository, shippingRepository,
             paymentRepository, fulfillmentRepository, refundRepository, new OrderEntityMapperImpl(), cartService,
             new CartMapperImpl(),
-            listingService, addressService, customerService,
-            new OrderProperties(Duration.ofMinutes(30), Duration.ofMinutes(1)));
+            listingService, addressService, customerService, orderProperties);
         var gateway = new VnpayGateway(new VnpayProperties(tmnCode, hashSecret, URI.create(payUrl),
             URI.create("http://localhost:3000/payment/return")));
         service = new PaymentServiceImpl(attemptRepository, eventRepository, new PaymentEntityMapperImpl(),
-            orderService, gateway, entitlementService, fulfillmentService, proceedsService, ledgerService);
+            orderService, gateway, entitlementService, fulfillmentService, proceedsService, ledgerService,
+            commissionPaymentService, orderProperties);
         order = order("PENDING_PAYMENT", now().plusMinutes(20));
         payment = payment("PENDING");
         savedAttempts = new ArrayList<>();
@@ -596,6 +603,99 @@ class PaymentServiceTest {
             savedEvents.add(invocation.getArgument(0));
             return invocation.getArgument(0);
         });
+    }
+
+    @Test
+    void ipn_quote_success_holds_proceeds_and_posts_ledger_ok() {
+        // given
+        var ref = "q".repeat(32);
+        givenAttempt(ref, "INITIATED");
+        var settlement = quoteSettlement(PaymentSettlement.PAID);
+        when(commissionPaymentService.isQuotePayment(paymentId)).thenReturn(true);
+        when(commissionPaymentService.settlePayment(any(), any(), any())).thenReturn(settlement);
+
+        // when
+        var result = service.handleVnpayNotification(signed(notification(ref, totalTimes100, "00")));
+
+        // then
+        assertAll(
+            () -> assertThat(result.getReply()).isEqualTo(VnpayReply.CONFIRMED),
+            () -> assertThat(result.getOutcome()).isEqualTo(EventOutcome.PROCESSED),
+            () -> assertThat(attempt(ref).getStatus()).isEqualTo("SUCCEEDED"),
+            () -> assertThat(attempt(ref).getProviderTransactionRef()).isEqualTo("14123456"),
+            () -> assertThat(savedEvents.getFirst().getOutcome()).isEqualTo("PROCESSED"),
+            () -> assertThat(order.getStatus()).isEqualTo("PENDING_PAYMENT")
+        );
+        var amount = ArgumentCaptor.forClass(BigDecimal.class);
+        verify(commissionPaymentService).settlePayment(eq(paymentId), amount.capture(), any());
+        assertThat(amount.getValue()).isEqualByComparingTo(total);
+        verify(ledgerService).recordQuotePayment(settlement);
+        verify(proceedsService).holdQuote(settlement);
+        verify(orderRepository, never()).findWithLockByOrderId(anyLong());
+        verifyNoInteractions(entitlementService, fulfillmentService);
+        verify(proceedsService, never()).recordPaid(any());
+        verify(ledgerService, never()).recordPayment(any());
+    }
+
+    @Test
+    void ipn_quote_failure_keeps_commission_awaiting_ok() {
+        // given
+        // A failed attempt never reaches the Commission, so the work does not start.
+        var ref = "r".repeat(32);
+        givenAttempt(ref, "INITIATED");
+        when(commissionPaymentService.isQuotePayment(paymentId)).thenReturn(true);
+
+        // when
+        var result = service.handleVnpayNotification(signed(notification(ref, totalTimes100, "24")));
+
+        // then
+        assertAll(
+            () -> assertThat(result.getReply()).isEqualTo(VnpayReply.CONFIRMED),
+            () -> assertThat(result.getOutcome()).isEqualTo(EventOutcome.PROCESSED),
+            () -> assertThat(attempt(ref).getStatus()).isEqualTo("FAILED")
+        );
+        verify(commissionPaymentService, never()).settlePayment(any(), any(), any());
+        verify(proceedsService, never()).holdQuote(any());
+        verify(ledgerService, never()).recordQuotePayment(any());
+    }
+
+    @Test
+    void ipn_quote_exception_records_unapplied_ok() {
+        // given
+        var ref = "s".repeat(32);
+        givenAttempt(ref, "INITIATED");
+        when(commissionPaymentService.isQuotePayment(paymentId)).thenReturn(true);
+        when(commissionPaymentService.settlePayment(any(), any(), any()))
+            .thenReturn(quoteSettlement(PaymentSettlement.NOT_PAYABLE));
+
+        // when
+        var result = service.handleVnpayNotification(signed(notification(ref, totalTimes100, "00")));
+
+        // then
+        assertAll(
+            () -> assertThat(result.getReply()).isEqualTo(VnpayReply.ALREADY_CONFIRMED),
+            () -> assertThat(result.getOutcome()).isEqualTo(EventOutcome.EXCEPTION),
+            () -> assertThat(attempt(ref).getStatus()).isEqualTo("EXCEPTION"),
+            () -> assertThat(savedEvents.getFirst().getOutcome()).isEqualTo("EXCEPTION")
+        );
+        verify(ledgerService).recordUnapplied(any(), any(), any());
+        verify(ledgerService, never()).recordQuotePayment(any());
+        verify(proceedsService, never()).holdQuote(any());
+    }
+
+    private QuoteSettlement quoteSettlement(PaymentSettlement settlement) {
+        return QuoteSettlement.builder()
+            .withSettlement(settlement)
+            .withPaymentId(paymentId)
+            .withCommissionId(3L)
+            .withQuoteId(21L)
+            .withArtistId(9L)
+            .withInstallment(1)
+            .withAmount(new BigDecimal(total))
+            .withProceeds(new BigDecimal("137273.0000"))
+            .withTaxAmount(new BigDecimal("13727.0000"))
+            .withPaidAt(now())
+            .build();
     }
 
     private void givenAttempt(String ref, String status) {

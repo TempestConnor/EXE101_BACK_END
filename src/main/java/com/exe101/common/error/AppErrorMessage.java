@@ -45,6 +45,7 @@ public enum AppErrorMessage {
     QUOTE_NOT_FOUND(HttpStatus.NOT_FOUND, "Quote was not found."),
     QUOTE_ALREADY_OFFERED(HttpStatus.CONFLICT, "Another Quote is awaiting the Customer's answer."),
     QUOTE_NOT_OFFERED(HttpStatus.CONFLICT, "This Quote is no longer awaiting an answer."),
+    QUOTE_NOT_PAYABLE(HttpStatus.CONFLICT, "This Quote is not accepted, already paid or no longer awaiting payment."),
     TAG_INVALID(HttpStatus.BAD_REQUEST, "Tag name is invalid."),
     TAG_NOT_FOUND(HttpStatus.NOT_FOUND, "Tag was not found."),
     TAG_ALREADY_EXISTS(HttpStatus.CONFLICT, "Tag name already exists."),

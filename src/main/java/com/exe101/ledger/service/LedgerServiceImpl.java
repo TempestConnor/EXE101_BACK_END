@@ -1,5 +1,6 @@
 package com.exe101.ledger.service;
 
+import com.exe101.commission.model.QuoteSettlement;
 import com.exe101.common.error.AppErrorMessage;
 import com.exe101.common.error.AppException;
 import com.exe101.entity.LedgerTransaction;
@@ -19,6 +20,8 @@ import com.exe101.ledger.repository.ItemBalance;
 import com.exe101.ledger.repository.LedgerEntryRepository;
 import com.exe101.ledger.repository.LedgerTransactionRepository;
 import com.exe101.ledger.repository.ProceedsState;
+import com.exe101.ledger.repository.QuoteBalance;
+import com.exe101.ledger.repository.QuoteProceedsState;
 import com.exe101.ledger.repository.ReconciliationRepository;
 import com.exe101.listing.model.ListingType;
 import com.exe101.order.model.Order;
@@ -82,6 +85,19 @@ public class LedgerServiceImpl implements LedgerService {
         lines.add(line(LedgerAccount.SHIPPING, null, null, order.getShippingAmount().negate()));
         post(LedgerEventType.PAYMENT_RECEIVED, LedgerSourceType.PAYMENT, order.getPayment().getPaymentId(),
             order.getPaidAt(), lines);
+    }
+
+    // A Quote installment arrives in CASH and is owed onward: its share of the price to the Artist, held until the
+    // Commission's release milestone, and its share of the tax. The Quote snapshot records a 0 fee.
+    @Override
+    public void recordQuotePayment(QuoteSettlement settlement) {
+        Long quoteId = settlement.getQuoteId();
+        post(LedgerEventType.PAYMENT_RECEIVED, LedgerSourceType.PAYMENT, settlement.getPaymentId(),
+            settlement.getPaidAt(), List.of(
+                line(LedgerAccount.CASH, null, null, settlement.getAmount()),
+                quoteLine(LedgerAccount.ARTIST_HELD, settlement.getArtistId(), quoteId,
+                    settlement.getProceeds().negate()),
+                quoteLine(LedgerAccount.TAX_PAYABLE, null, quoteId, settlement.getTaxAmount().negate())));
     }
 
     // §12.12: money the provider confirmed that applies to no Order is kept apart until it is refunded by hand.
@@ -156,6 +172,7 @@ public class LedgerServiceImpl implements LedgerService {
                 mismatches(MismatchCheck.UNBALANCED_TRANSACTION, "LedgerTransaction",
                     reconciliationRepository.findUnbalancedTransactionIds()),
                 disagreements(),
+                quoteDisagreements(),
                 mismatches(MismatchCheck.MISSING_ENTRY, "Payment",
                     reconciliationRepository.findPaymentsWithoutReceipt()),
                 mismatches(MismatchCheck.UNEXPECTED_ENTRY, "Payment",
@@ -285,6 +302,46 @@ public class LedgerServiceImpl implements LedgerService {
         return found;
     }
 
+    // A Quote's installments share its Artist accounts, so its balances must equal what its proceeds owe in each.
+    private List<Mismatch> quoteDisagreements() {
+        Map<Long, Map<String, BigDecimal>> balances = reconciliationRepository
+            .findQuoteBalances(artistAccounts.stream().map(Enum::name).toList()).stream()
+            .collect(Collectors.groupingBy(QuoteBalance::getQuoteId,
+                Collectors.toMap(QuoteBalance::getAccount, QuoteBalance::getAmount)));
+        Map<Long, List<QuoteProceedsState>> proceeds = reconciliationRepository.findQuoteProceeds().stream()
+            .collect(Collectors.groupingBy(QuoteProceedsState::getQuoteId));
+        List<Long> disagreeing = proceeds.entrySet().stream()
+            .filter(entry -> !quoteAgrees(entry.getValue(), balances.getOrDefault(entry.getKey(), Map.of())))
+            .flatMap(entry -> entry.getValue().stream().map(QuoteProceedsState::getProceedsId))
+            .toList();
+        List<Long> orphans = balances.entrySet().stream()
+            .filter(entry -> !proceeds.containsKey(entry.getKey()))
+            .filter(entry -> entry.getValue().values().stream().anyMatch(amount -> amount.signum() != 0))
+            .map(Map.Entry::getKey)
+            .toList();
+        List<Mismatch> found = new ArrayList<>(mismatches(MismatchCheck.STATUS_DISAGREES, "ArtistProceeds",
+            disagreeing));
+        found.addAll(mismatches(MismatchCheck.UNEXPECTED_ENTRY, "CommissionQuote", orphans));
+
+        return found;
+    }
+
+    private boolean quoteAgrees(List<QuoteProceedsState> states, Map<String, BigDecimal> actual) {
+        Map<LedgerAccount, BigDecimal> expected = new HashMap<>();
+
+        for (QuoteProceedsState state : states) {
+            LedgerAccount owedIn = proceedsAccounts.get(state.getStatus());
+
+            if (owedIn != null) {
+                expected.merge(owedIn, state.getAmount().negate(), BigDecimal::add);
+            }
+        }
+
+        return artistAccounts.stream().allMatch(account ->
+            actual.getOrDefault(account.name(), BigDecimal.ZERO)
+                .compareTo(expected.getOrDefault(account, BigDecimal.ZERO)) == 0);
+    }
+
     private boolean agrees(ProceedsState state, Map<String, BigDecimal> actual) {
         Map<LedgerAccount, BigDecimal> expected = new HashMap<>();
         LedgerAccount owedIn = proceedsAccounts.get(state.getStatus());
@@ -313,6 +370,15 @@ public class LedgerServiceImpl implements LedgerService {
             .withAccount(account)
             .withArtistId(artistId)
             .withOrderItemId(orderItemId)
+            .withAmount(amount)
+            .build();
+    }
+
+    private LedgerLine quoteLine(LedgerAccount account, Long artistId, Long quoteId, BigDecimal amount) {
+        return LedgerLine.builder()
+            .withAccount(account)
+            .withArtistId(artistId)
+            .withQuoteId(quoteId)
             .withAmount(amount)
             .build();
     }

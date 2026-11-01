@@ -85,6 +85,12 @@ request, and acceptance writes the zero-fee snapshot and awaits the first 50% pa
 Quotes](commission-quotes.md). The first payment now comes before the sketch (amendment §D.12, changed 2 November
 2026). Quote payments, change Quotes and the license contract belong to F17b.
 
+F17b increment (priority 3): the first 50% payment of an accepted Quote, through VNPay like an Order, moves the
+Commission to `IN_PROGRESS` and holds the Artist's share. Each Quote is paid in two installments (migration `0005`), with
+the first half of the price and of the tax rounded up, following [Commission Quote payments](commission-quote-payments.md).
+The final payment waits for the Customer's approval (F18). Change Quotes, releasing Quote proceeds, the 7-day close and
+the license contract come later.
+
 Requirements change recorded 31 October 2026: the site is the storefront of one
 Artist team, with no Platform Fee, held funds released to each Artist's own
 account, a 48-hour post-delivery return window, split Commission payments, and

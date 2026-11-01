@@ -74,8 +74,9 @@ so its amounts follow [financial correctness](financial-correctness.md): the ser
 
 ## Deferred to F17b
 
-- Quote payments: two VNPay payments per Quote (50% each). This needs a migration, because `UX_Payment_Quote` allows
-  one Payment per Quote, plus a rounding rule for the halves, held proceeds, ledger postings and reconciliation.
+- Quote payments: two VNPay payments per Quote (50% each). **The first payment is done** in
+  [Commission Quote payments](commission-quote-payments.md) (migration `0005`, first half rounded up, held proceeds,
+  ledger and reconciliation); the final payment waits for F18.
 - Change Quotes (§21, +10.000 VND per change, D10), including 0 VND changes, and how they are paid (amendment §E).
 - The spec's F17 acceptance criteria ("a 0 VND change after a paid Quote creates no payment"; "a failed payment does
   not start work"), and the 7-day final-payment deadline (§D.14).
@@ -83,8 +84,7 @@ so its amounts follow [financial correctness](financial-correctness.md): the ser
 
 ## Known limits
 
-- **`AWAITING_PAYMENT` cannot be paid yet.** Until F17b, an accepted Commission waits with no way to pay. Closing it:
-  the Quote payment increment.
+- **`AWAITING_PAYMENT` can now be paid** with the first 50% ([Commission Quote payments](commission-quote-payments.md)).
 - **No Admin view of Quotes,** as for threads (F16), until disputes (F19).
 - **The Policy text is out of date** about when the first payment is due, until the team changes it.
 

@@ -21,6 +21,8 @@ public class CommissionQuote {
     private String expectedCompletionTerms;
     private BigDecimal price;
     private BigDecimal taxAmount;
+    private BigDecimal firstPaymentAmount;
+    private BigDecimal finalPaymentAmount;
     private String currencyCode;
     private QuoteStatus status;
     private OffsetDateTime offeredAt;

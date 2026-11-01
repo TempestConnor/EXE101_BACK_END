@@ -61,7 +61,7 @@ public class CommissionQuoteServiceImpl implements CommissionQuoteService {
             .toList();
     }
 
-    // Only the initial Quote of a REQUESTED Commission for now; change Quotes (§21) come with Quote payments.
+    // Only the initial Quote of a REQUESTED Commission for now; change Quotes (§21) come after the first payment.
     // The tax is fixed at the offer, so the Customer accepts exactly the amount shown (approved 2 November 2026).
     @Override
     public CommissionQuote offer(Long userId, Long commissionId, QuoteTerms terms) {

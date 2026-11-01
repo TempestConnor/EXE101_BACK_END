@@ -10,6 +10,8 @@ import org.springframework.data.jpa.repository.Lock;
 public interface ProceedsRepository extends JpaRepository<ArtistProceeds, Long> {
     boolean existsByOrderItemId(Long orderItemId);
 
+    boolean existsByQuoteIdAndInstallment(Long quoteId, Integer installment);
+
     // UPDLOCK until commit, taken after the Order lock or the release lock.
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<ArtistProceeds> findWithLockByOrderItemId(Long orderItemId);

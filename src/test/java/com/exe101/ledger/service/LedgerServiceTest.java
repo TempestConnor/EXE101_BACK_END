@@ -14,6 +14,7 @@ import com.exe101.ledger.repository.ItemBalance;
 import com.exe101.ledger.repository.LedgerEntryRepository;
 import com.exe101.ledger.repository.LedgerTransactionRepository;
 import com.exe101.ledger.repository.ProceedsState;
+import com.exe101.ledger.repository.QuoteProceedsState;
 import com.exe101.ledger.repository.ReconciliationRepository;
 import com.exe101.listing.model.ListingType;
 import com.exe101.order.model.Order;
@@ -302,6 +303,48 @@ class LedgerServiceTest {
                 .satisfies(mismatch -> assertMismatch(mismatch, MismatchCheck.AMOUNT_DISAGREES, "Payment",
                     paymentId))
         );
+    }
+
+    @Test
+    void reconcile_quote_proceeds_disagreeing_ko() {
+        // given
+        // The first installment's proceeds are held, but no ledger line holds them for the Quote.
+        when(reconciliationRepository.findQuoteProceeds())
+            .thenReturn(List.of(quoteProceeds(510L, 21L, "50001", "HELD")));
+
+        // when
+        var reconciliation = service.reconcile();
+
+        // then
+        assertAll(
+            () -> assertThat(reconciliation.isClean()).isFalse(),
+            () -> assertThat(reconciliation.getMismatches()).singleElement()
+                .satisfies(mismatch -> assertMismatch(mismatch, MismatchCheck.STATUS_DISAGREES, "ArtistProceeds",
+                    510L)),
+            () -> assertThatThrownBy(() -> service.requireReconciled())
+                .isInstanceOfSatisfying(AppException.class, exception ->
+                    assertThat(exception.getError()).isEqualTo(AppErrorMessage.RECONCILIATION_MISMATCH))
+        );
+    }
+
+    private QuoteProceedsState quoteProceeds(long proceedsId, long quoteId, String amount, String status) {
+        return new QuoteProceedsState() {
+            public Long getProceedsId() {
+                return proceedsId;
+            }
+
+            public Long getQuoteId() {
+                return quoteId;
+            }
+
+            public BigDecimal getAmount() {
+                return new BigDecimal(amount);
+            }
+
+            public String getStatus() {
+                return status;
+            }
+        };
     }
 
     private void assertMismatch(Mismatch mismatch, MismatchCheck check, String recordType, long recordId) {

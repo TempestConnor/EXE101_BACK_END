@@ -25,6 +25,7 @@ public class ArtistProceeds  implements java.io.Serializable {
      private long artistId;
      private Long orderItemId;
      private Long quoteId;
+     private Integer installment;
      private BigDecimal amount;
      private String currencyCode;
      private String status;
@@ -92,6 +93,16 @@ public class ArtistProceeds  implements java.io.Serializable {
     
     public void setQuoteId(Long quoteId) {
         this.quoteId = quoteId;
+    }
+
+    
+    @Column(name="Installment", columnDefinition="tinyint")
+    public Integer getInstallment() {
+        return this.installment;
+    }
+    
+    public void setInstallment(Integer installment) {
+        this.installment = installment;
     }
 
     

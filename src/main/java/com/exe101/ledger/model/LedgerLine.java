@@ -16,5 +16,6 @@ public class LedgerLine {
     private LedgerAccount account;
     private Long artistId;
     private Long orderItemId;
+    private Long quoteId;
     private BigDecimal amount;
 }

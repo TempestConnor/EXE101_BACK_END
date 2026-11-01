@@ -23,7 +23,16 @@ public interface ReconciliationRepository extends Repository<LedgerTransaction, 
         + " FROM ArtistProceeds p WHERE p.orderItemId IS NOT NULL")
     List<ProceedsState> findOrderItemProceeds();
 
-    @Query("SELECT p.paymentId FROM Payment p WHERE p.status = 'SUCCEEDED' AND p.orderId IS NOT NULL"
+    @Query("SELECT e.quoteId AS quoteId, e.account AS account, SUM(e.amount) AS amount FROM LedgerEntry e"
+        + " WHERE e.quoteId IS NOT NULL AND e.account IN :accounts GROUP BY e.quoteId, e.account")
+    List<QuoteBalance> findQuoteBalances(Collection<String> accounts);
+
+    @Query("SELECT p.proceedsId AS proceedsId, p.quoteId AS quoteId, p.amount AS amount, p.status AS status"
+        + " FROM ArtistProceeds p WHERE p.quoteId IS NOT NULL")
+    List<QuoteProceedsState> findQuoteProceeds();
+
+    // Order Payments and Quote installments alike.
+    @Query("SELECT p.paymentId FROM Payment p WHERE p.status = 'SUCCEEDED'"
         + " AND NOT EXISTS (SELECT 1 FROM LedgerTransaction t WHERE t.type = 'PAYMENT_RECEIVED'"
         + " AND t.sourceType = 'PAYMENT' AND t.sourceId = p.paymentId)")
     List<Long> findPaymentsWithoutReceipt();

@@ -4,6 +4,7 @@ import com.exe101.artist.model.Artist;
 import com.exe101.artist.service.ArtistService;
 import com.exe101.audit.model.AuditEntry;
 import com.exe101.audit.service.AuditService;
+import com.exe101.commission.model.QuoteSettlement;
 import com.exe101.common.error.AppErrorMessage;
 import com.exe101.common.error.AppException;
 import com.exe101.common.persistence.DatabaseErrors;
@@ -47,6 +48,7 @@ public class ProceedsServiceImpl implements ProceedsService {
     private static Map<ReleaseStatus, Set<ReleaseStatus>> allowedOutcomes = Map.of(
         ReleaseStatus.PENDING, Set.of(ReleaseStatus.PROCESSING, ReleaseStatus.PAID, ReleaseStatus.FAILED),
         ReleaseStatus.PROCESSING, Set.of(ReleaseStatus.PAID, ReleaseStatus.FAILED));
+    private static String currency = "VND";
     private static String transferProvider = "MANUAL";
     private static String releaseCreatedAction = "RELEASE_CREATED";
     private static String releaseOutcomeAction = "RELEASE_STATUS_CHANGED";
@@ -76,6 +78,31 @@ public class ProceedsServiceImpl implements ProceedsService {
         log.info("[PROCEEDS] - ACTION: recordPaid: orderId: {}: recorded: {}", order.getOrderId(), recorded.size());
 
         return recorded;
+    }
+
+    // Amendment §D.13: a paid Quote installment holds its share of the price for the commissioned Artist (fee 0)
+    // until the Commission's release milestone. Runs in the payment-success transaction, which holds the Commission
+    // lock; an installment that already has proceeds is skipped (§31.11), and UX_Proceeds_QuoteInstallment is the
+    // database guard.
+    @Override
+    public Optional<Proceeds> holdQuote(QuoteSettlement settlement) {
+        if (repository.existsByQuoteIdAndInstallment(settlement.getQuoteId(), settlement.getInstallment())) {
+            return Optional.empty();
+        }
+
+        Proceeds proceeds = Proceeds.builder()
+            .withArtistId(settlement.getArtistId())
+            .withQuoteId(settlement.getQuoteId())
+            .withInstallment(settlement.getInstallment())
+            .withAmount(settlement.getProceeds())
+            .withCurrencyCode(currency)
+            .withStatus(ProceedsStatus.HELD)
+            .build();
+        Proceeds held = mapper.toModel(repository.saveAndFlush(mapper.toEntity(proceeds)));
+        log.info("[PROCEEDS] - ACTION: holdQuote: quoteId: {}: installment: {}: proceedsId: {}",
+            settlement.getQuoteId(), settlement.getInstallment(), held.getProceedsId());
+
+        return Optional.of(held);
     }
 
     // Amendment §B.7: a physical item's proceeds are released when its return window closes with no open or approved

@@ -24,6 +24,7 @@ public class LedgerEntry  implements java.io.Serializable {
      private String account;
      private Long artistId;
      private Long orderItemId;
+     private Long quoteId;
      private BigDecimal amount;
      private String currencyCode;
 
@@ -96,6 +97,16 @@ public class LedgerEntry  implements java.io.Serializable {
     
     public void setOrderItemId(Long orderItemId) {
         this.orderItemId = orderItemId;
+    }
+
+    
+    @Column(name="QuoteId", columnDefinition="bigint")
+    public Long getQuoteId() {
+        return this.quoteId;
+    }
+    
+    public void setQuoteId(Long quoteId) {
+        this.quoteId = quoteId;
     }
 
     

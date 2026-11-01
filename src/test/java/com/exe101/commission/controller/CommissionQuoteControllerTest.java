@@ -1,6 +1,7 @@
 package com.exe101.commission.controller;
 
 import com.exe101.commission.mapper.CommissionMapperImpl;
+import com.exe101.commission.mapper.CommissionQuoteEntityMapperImpl;
 import com.exe101.commission.mapper.CommissionQuoteMapperImpl;
 import com.exe101.commission.model.CommissionQuote;
 import com.exe101.commission.model.QuoteStatus;
@@ -22,6 +23,7 @@ import com.exe101.staff.service.StaffService;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -34,6 +36,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -108,6 +111,25 @@ class CommissionQuoteControllerTest {
             .andExpect(jsonPath("$.quoteId").value(21))
             .andExpect(jsonPath("$.status").value("ACCEPTED"))
             .andExpect(jsonPath("$.totalAmount").value(1650000));
+    }
+
+    @Test
+    void quote_response_shows_installment_amounts_ok() throws Exception {
+        // given
+        // 100 001 + 10 001 tax: the first payment takes the odd dong of each (approved 2 November 2026).
+        var token = customerToken();
+        var stored = new com.exe101.entity.CommissionQuote(3L, 1, "Full-body portrait", "3 weeks",
+            new BigDecimal("100001.0000"), new BigDecimal("10001.0000"), "VND", "ACCEPTED",
+            OffsetDateTime.of(2026, 11, 2, 9, 0, 0, 0, ZoneOffset.UTC));
+        stored.setQuoteId(21L);
+        when(quotes.list(42L, 3L)).thenReturn(List.of(new CommissionQuoteEntityMapperImpl().toModel(stored)));
+
+        // when / then
+        mvc.perform(get("/commissions/3/quotes").header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].totalAmount").value(110002))
+            .andExpect(jsonPath("$[0].firstPaymentAmount").value(55002))
+            .andExpect(jsonPath("$[0].finalPaymentAmount").value(55000));
     }
 
     @Test

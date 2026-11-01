@@ -119,9 +119,10 @@ public interface OrderEntityMapper {
     @Mapping(source = "countryCode", target = "withCountryCode")
     ShippingAddress toModel(OrderShippingAddress entity);
 
-    // Quote targets belong to priority 3; SucceededAt is set by F11.
+    // An Order Payment has no Quote and no installment; SucceededAt is set by F11.
     @Mapping(target = "paymentId", ignore = true)
     @Mapping(target = "quoteId", ignore = true)
+    @Mapping(target = "installment", ignore = true)
     @Mapping(target = "succeededAt", ignore = true)
     @Mapping(target = "rowVer", ignore = true)
     Payment toEntity(PaymentTarget payment);

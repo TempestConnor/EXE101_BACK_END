@@ -7,5 +7,7 @@ import java.util.Map;
 public interface PaymentService {
     PaymentStart start(Long userId, Long orderId, String clientIp);
 
+    PaymentStart startQuote(Long userId, Long commissionId, Long quoteId, String clientIp);
+
     NotificationResult handleVnpayNotification(Map<String, String> parameters);
 }

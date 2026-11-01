@@ -38,7 +38,7 @@ public class VnpayGateway {
 
     // The page accepts payment only until the Order's ExpiresAt, so VNPay itself refuses most late payments.
     public String paymentUrl(
-        String attemptRef, BigDecimal amount, Long orderId, OffsetDateTime createdAt, OffsetDateTime expiresAt,
+        String attemptRef, BigDecimal amount, String orderInfo, OffsetDateTime createdAt, OffsetDateTime expiresAt,
         String clientIp
     ) {
         Map<String, String> fields = new TreeMap<>();
@@ -48,7 +48,7 @@ public class VnpayGateway {
         fields.put("vnp_Amount", amount.movePointRight(2).toBigIntegerExact().toString());
         fields.put("vnp_CurrCode", "VND");
         fields.put("vnp_TxnRef", attemptRef);
-        fields.put("vnp_OrderInfo", "Thanh toan don hang " + orderId);
+        fields.put("vnp_OrderInfo", orderInfo);
         fields.put("vnp_OrderType", "other");
         fields.put("vnp_Locale", "vn");
         fields.put("vnp_ReturnUrl", properties.returnUrl().toString());

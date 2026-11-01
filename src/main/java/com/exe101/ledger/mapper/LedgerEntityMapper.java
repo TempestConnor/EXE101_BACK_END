@@ -18,6 +18,7 @@ public interface LedgerEntityMapper {
     @Mapping(source = "line.account", target = "account")
     @Mapping(source = "line.artistId", target = "artistId")
     @Mapping(source = "line.orderItemId", target = "orderItemId")
+    @Mapping(source = "line.quoteId", target = "quoteId")
     @Mapping(source = "line.amount", target = "amount")
     @Mapping(target = "currencyCode", constant = "VND")
     LedgerEntry toEntity(LedgerLine line, Long transactionId);
