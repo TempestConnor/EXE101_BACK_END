@@ -26,6 +26,7 @@ import com.exe101.order.model.OrderAsset;
 import com.exe101.order.model.OrderCommit;
 import com.exe101.order.model.OrderLine;
 import com.exe101.order.model.OrderStatus;
+import com.exe101.order.model.PaymentSettlement;
 import com.exe101.order.model.PaymentStatus;
 import com.exe101.order.model.PaymentTarget;
 import com.exe101.order.repository.OrderItemAssetRepository;
@@ -159,6 +160,68 @@ public class OrderServiceImpl implements OrderService {
         log.info("[ORDER] - ACTION: expireDue: expired: {}", expired);
 
         return expired;
+    }
+
+    // Payment can start only while the Order is pending, within its window, and its Payment is still pending.
+    @Override
+    public Order getPayable(Long userId, Long orderId) {
+        Order order = get(userId, orderId);
+        boolean payable = order.getStatus() == OrderStatus.PENDING_PAYMENT
+            && order.getExpiresAt().isAfter(now())
+            && order.getPayment().getStatus() == PaymentStatus.PENDING;
+
+        if (!payable) {
+            throw new AppException(AppErrorMessage.ORDER_NOT_PAYABLE);
+        }
+
+        return order;
+    }
+
+    // Applies a provider-confirmed payment. The Order is locked before its Payment, the order the expiry job uses,
+    // so a success and the job wait for each other. ExpiresAt decides against the receipt time (approved 1 November
+    // 2026), whether or not the job has run yet.
+    @Override
+    public PaymentSettlement settlePayment(Long paymentId, BigDecimal amount, OffsetDateTime receivedAt) {
+        Long orderId = paymentRepository.findOrderIdByPaymentId(paymentId)
+            .orElseThrow(() -> new IllegalStateException("Payment has no Order: " + paymentId));
+        MarketplaceOrder order = orderRepository.findWithLockByOrderId(orderId).orElseThrow();
+        Payment payment = paymentRepository.findWithLockByPaymentId(paymentId).orElseThrow();
+
+        if (payment.getAmount().compareTo(amount) != 0) {
+            log.warn("[ORDER] - ACTION: settlePayment: orderId: {}: outcome: {}", orderId,
+                PaymentSettlement.WRONG_AMOUNT);
+            return PaymentSettlement.WRONG_AMOUNT;
+        }
+
+        if (OrderStatus.PAID.name().equals(order.getStatus())) {
+            log.warn("[ORDER] - ACTION: settlePayment: orderId: {}: outcome: {}", orderId,
+                PaymentSettlement.ALREADY_PAID);
+            return PaymentSettlement.ALREADY_PAID;
+        }
+
+        boolean payable = OrderStatus.PENDING_PAYMENT.name().equals(order.getStatus())
+            && order.getExpiresAt().isAfter(receivedAt)
+            && PaymentStatus.PENDING.name().equals(payment.getStatus());
+
+        // §12.12: money arrived for an Order that cannot be paid; the Order is left as it is.
+        if (!payable) {
+            payment.setStatus(PaymentStatus.EXCEPTION.name());
+            paymentRepository.saveAndFlush(payment);
+            log.warn("[ORDER] - ACTION: settlePayment: orderId: {}: outcome: {}", orderId,
+                PaymentSettlement.NOT_PAYABLE);
+            return PaymentSettlement.NOT_PAYABLE;
+        }
+
+        order.setStatus(OrderStatus.PAID.name());
+        order.setPaidAt(receivedAt);
+        orderRepository.saveAndFlush(order);
+        payment.setStatus(PaymentStatus.SUCCEEDED.name());
+        payment.setSucceededAt(receivedAt);
+        paymentRepository.saveAndFlush(payment);
+        log.info("[ORDER] - ACTION: settlePayment: orderId: {}: outcome: {}: amount: {}", orderId,
+            PaymentSettlement.PAID, amount);
+
+        return PaymentSettlement.PAID;
     }
 
     // The Cart version was checked when the Cart was claimed. Lines, quantities and unit prices must equal the

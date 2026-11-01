@@ -1,1 +1,3 @@
 JWT_SECRET: dGVzdC1vbmx5LWtleS0zMi1ieXRlcy1taW5pbXVtLW5vdC1mb3ItZGVwbG95bWVudA==
+VNPAY_TMN_CODE: TESTTMN1
+VNPAY_HASH_SECRET: test-only-vnpay-hash-secret-not-for-deployment

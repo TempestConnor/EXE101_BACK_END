@@ -42,6 +42,11 @@ a pending payment target, the 30-minute payment window and the expiry job follow
 version is the checkout commit token (Q18). Payment attempts and confirmation belong to F11; the license contract
 waits for its fields and a schema decision.
 
+F11 increment: VNPay payment attempts and signed IPN notifications, deduplicated and locked so an Order is paid
+once, with late, wrong-amount, unknown and second successes recorded as exceptions, follow
+[Provider payment](payment.md). Quote payments belong to priority 3, entitlement grants to F12, releases to F14,
+refunds of exception payments to F15; the license contract stays out until its fields and schema are decided.
+
 Requirements change recorded 31 October 2026: the site is the storefront of one
 Artist team, with no Platform Fee, held funds released to each Artist's own
 account, a 48-hour post-delivery return window, split Commission payments, and

@@ -72,6 +72,7 @@ public enum AppErrorMessage {
     CHECKOUT_BLOCKED(HttpStatus.UNPROCESSABLE_CONTENT, "The Cart cannot be checked out; see the listed problems."),
     ORDER_TOTAL_ZERO(HttpStatus.UNPROCESSABLE_CONTENT, "An Order with a total of 0 VND cannot be created."),
     ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "Order was not found."),
+    ORDER_NOT_PAYABLE(HttpStatus.CONFLICT, "This Order is paid, expired or past its payment window."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "The request could not be completed.");
 
     private final HttpStatus status;
