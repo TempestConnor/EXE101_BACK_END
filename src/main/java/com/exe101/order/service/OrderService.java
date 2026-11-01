@@ -19,4 +19,6 @@ public interface OrderService {
     Order getPayable(Long userId, Long orderId);
 
     PaymentSettlement settlePayment(Long paymentId, BigDecimal amount, OffsetDateTime receivedAt);
+
+    Order getLockedByPayment(Long paymentId);
 }

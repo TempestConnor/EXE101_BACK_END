@@ -1,7 +1,7 @@
 # Protected files (F08)
 
-Decisions recorded 31 October 2026 for the F08 increment. Entitlements are granted by F12 and Orders are created by
-F10; until then, no rows reach the purchased-file path outside tests.
+Decisions recorded 31 October 2026 for the F08 increment. Orders are created by F10 and entitlements granted by F12
+([Digital entitlements](digital-entitlements.md)).
 
 ## Approved policies
 
@@ -38,7 +38,7 @@ F10; until then, no rows reach the purchased-file path outside tests.
 
 ## Known limits
 
-- Listing the Customer's entitlements (a "library") is F12; until then a client needs the asset ID from the Order.
+- The Customer's entitlements are listed by `GET /purchases` ([Digital entitlements](digital-entitlements.md)).
 - The sweep runs on every instance; it is safe to run concurrently, because it deletes only bytes without a row.
 - Unreferenced `StoredFile` rows (for example a removed draft preview) keep their bytes permanently.
 - Historical access after account deletion (Q16) is deferred with account deletion.

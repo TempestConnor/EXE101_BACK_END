@@ -6,6 +6,7 @@ import com.exe101.cart.service.CartService;
 import com.exe101.common.error.AppErrorMessage;
 import com.exe101.common.error.AppException;
 import com.exe101.customer.service.CustomerService;
+import com.exe101.entitlement.service.EntitlementService;
 import com.exe101.entity.MarketplaceOrder;
 import com.exe101.entity.Payment;
 import com.exe101.entity.PaymentAttempt;
@@ -13,6 +14,8 @@ import com.exe101.entity.ProviderEvent;
 import com.exe101.listing.service.ListingService;
 import com.exe101.order.config.OrderProperties;
 import com.exe101.order.mapper.OrderEntityMapperImpl;
+import com.exe101.order.model.Order;
+import com.exe101.order.model.OrderStatus;
 import com.exe101.order.repository.OrderItemAssetRepository;
 import com.exe101.order.repository.OrderItemRepository;
 import com.exe101.order.repository.OrderRepository;
@@ -48,6 +51,9 @@ import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -102,6 +108,8 @@ class PaymentServiceTest {
     private AddressService addressService;
     @Mock
     private CustomerService customerService;
+    @Mock
+    private EntitlementService entitlementService;
     private PaymentServiceImpl service;
     private MarketplaceOrder order;
     private Payment payment;
@@ -117,7 +125,7 @@ class PaymentServiceTest {
         var gateway = new VnpayGateway(new VnpayProperties(tmnCode, hashSecret, URI.create(payUrl),
             URI.create("http://localhost:3000/payment/return")));
         service = new PaymentServiceImpl(attemptRepository, eventRepository, new PaymentEntityMapperImpl(),
-            orderService, gateway);
+            orderService, gateway, entitlementService);
         order = order("PENDING_PAYMENT", now().plusMinutes(20));
         payment = payment("PENDING");
         savedAttempts = new ArrayList<>();
@@ -478,6 +486,50 @@ class PaymentServiceTest {
     }
 
     // The Order and its Payment are single in-memory rows that every read returns and every save updates.
+    @Test
+    void payment_success_grants_entitlements_ok() {
+        // given
+        var ref = "8".repeat(32);
+        givenAttempt(ref, "INITIATED");
+        var granted = ArgumentCaptor.forClass(Order.class);
+
+        // when
+        service.handleVnpayNotification(signed(notification(ref, totalTimes100, "00")));
+
+        // then
+        verify(entitlementService).grantDigital(granted.capture());
+        assertAll(
+            () -> assertThat(granted.getValue().getOrderId()).isEqualTo(orderId),
+            () -> assertThat(granted.getValue().getStatus()).isEqualTo(OrderStatus.PAID)
+        );
+    }
+
+    // Wrong amount, success after ExpiresAt, success for an already paid Order, and a failure.
+    @ParameterizedTest
+    @CsvSource({
+        "15000000, 00, 20, PENDING_PAYMENT, PENDING",
+        "15100000, 00, -1, PENDING_PAYMENT, PENDING",
+        "15100000, 00, 20, PAID, SUCCEEDED",
+        "15100000, 24, 20, PENDING_PAYMENT, PENDING"
+    })
+    void payment_exception_does_not_grant_ko(
+        String amount, String responseCode, int expiresInMinutes, String orderStatus, String paymentStatus
+    ) {
+        // given
+        var ref = "9".repeat(32);
+        givenAttempt(ref, "INITIATED");
+        order.setStatus(orderStatus);
+        order.setExpiresAt(now().plusMinutes(expiresInMinutes));
+        payment.setStatus(paymentStatus);
+
+        // when
+        var result = service.handleVnpayNotification(signed(notification(ref, amount, responseCode)));
+
+        // then
+        assertThat(result.getReply()).isNotEqualTo(VnpayReply.INVALID_SIGNATURE);
+        verifyNoInteractions(entitlementService);
+    }
+
     private void givenPersistence() {
         when(orderRepository.findByOrderIdAndCustomerId(orderId, buyerId)).thenReturn(Optional.of(order));
         when(orderRepository.findWithLockByOrderId(orderId)).thenReturn(Optional.of(order));

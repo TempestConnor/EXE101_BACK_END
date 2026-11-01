@@ -224,6 +224,16 @@ public class OrderServiceImpl implements OrderService {
         return PaymentSettlement.PAID;
     }
 
+    // For work that follows a settled payment in the same transaction; the Order lock is already held by then.
+    @Override
+    public Order getLockedByPayment(Long paymentId) {
+        Long orderId = paymentRepository.findOrderIdByPaymentId(paymentId)
+            .orElseThrow(() -> new IllegalStateException("Payment has no Order: " + paymentId));
+        MarketplaceOrder entity = orderRepository.findWithLockByOrderId(orderId).orElseThrow();
+
+        return assemble(List.of(entity)).getFirst();
+    }
+
     // The Cart version was checked when the Cart was claimed. Lines, quantities and unit prices must equal the
     // recomputed preview, and so must the total, which also covers a changed tax rate or shipping fee.
     private boolean confirmed(OrderCommit commit, CheckoutPreview preview) {

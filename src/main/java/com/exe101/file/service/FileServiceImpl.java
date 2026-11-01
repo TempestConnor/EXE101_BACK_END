@@ -20,6 +20,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
@@ -91,6 +92,14 @@ public class FileServiceImpl implements FileService {
         log.info("[FILE] - ACTION: readPurchased: userId: {}: fileId: {}", userId, fileId);
 
         return content;
+    }
+
+    // Metadata only; whether the bytes are present is checked when a file is read.
+    @Override
+    public List<StoredFileInfo> describe(Collection<Long> fileIds) {
+        return repository.findAllById(fileIds).stream()
+            .map(mapper::toModel)
+            .toList();
     }
 
     @Override

@@ -47,6 +47,10 @@ once, with late, wrong-amount, unknown and second successes recorded as exceptio
 [Provider payment](payment.md). Quote payments belong to priority 3, entitlement grants to F12, releases to F14,
 refunds of exception payments to F15; the license contract stays out until its fields and schema are decided.
 
+F12 increment: direct digital items are granted their recorded files once, inside the payment-success transaction,
+and buyers list them with `GET /purchases`, following [Digital entitlements](digital-entitlements.md). The physical
+grant at the close of the return window is added by F13/F15 through the same grant operation.
+
 Requirements change recorded 31 October 2026: the site is the storefront of one
 Artist team, with no Platform Fee, held funds released to each Artist's own
 account, a 48-hour post-delivery return window, split Commission payments, and

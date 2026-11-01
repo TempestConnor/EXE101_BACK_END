@@ -68,6 +68,7 @@ public class SecurityConfiguration {
                 .requestMatchers("/admin/artworks", "/admin/artworks/**").hasRole("ADMIN")
                 .requestMatchers("/listings", "/listings/**").hasRole("CUSTOMER")
                 .requestMatchers("/admin/listings", "/admin/listings/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/purchases").hasRole("CUSTOMER")
                 .requestMatchers(HttpMethod.GET, "/purchases/assets/*/content").hasRole("CUSTOMER")
                 .requestMatchers("/cart", "/cart/**").hasRole("CUSTOMER")
                 .requestMatchers("/orders", "/orders/**").hasRole("CUSTOMER")
