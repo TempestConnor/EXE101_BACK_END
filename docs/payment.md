@@ -46,7 +46,7 @@ Decisions recorded 1 November 2026 for the F11 increment. Only Order payments; p
   failure leaves nothing recorded and VNPay's retry is handled afresh. `UQ(ProviderName, ExternalEventId)` and
   `UX_Attempt_OneSuccess` remain the database guards.
 - **Later side effects (R5):** no "order paid" hook. F12 (entitlements, [done](digital-entitlements.md)) and F14
-  (releases) add their calls to the same success transaction.
+  (proceeds and digital releases, [done](artist-proceeds.md)) add their calls to the same success transaction.
 - **Unknown failures (R6):** recorded as `IGNORED`.
 
 ## Configuration

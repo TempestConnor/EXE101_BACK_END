@@ -18,6 +18,7 @@ import com.exe101.order.model.Order;
 import com.exe101.order.model.OrderLine;
 import com.exe101.order.model.OrderStatus;
 import com.exe101.order.service.OrderService;
+import com.exe101.proceeds.service.ProceedsService;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -63,6 +64,8 @@ class FulfillmentServiceTest {
     private EntitlementService entitlementService;
     @Mock
     private OrderService orderService;
+    @Mock
+    private ProceedsService proceedsService;
     private FulfillmentServiceImpl service;
     private List<PhysicalFulfillment> savedFulfillments;
     private List<FulfillmentEvent> savedEvents;
@@ -70,7 +73,7 @@ class FulfillmentServiceTest {
     @BeforeEach
     void setUp() {
         service = new FulfillmentServiceImpl(repository, eventRepository, returnRequestRepository,
-            new FulfillmentEntityMapperImpl(), entitlementService, orderService,
+            new FulfillmentEntityMapperImpl(), entitlementService, orderService, proceedsService,
             new FulfillmentProperties(Duration.ofHours(48), Duration.ofMinutes(10)));
         savedFulfillments = new ArrayList<>();
         savedEvents = new ArrayList<>();
@@ -375,6 +378,49 @@ class FulfillmentServiceTest {
         // then
         assertThat(granted).isTrue();
         verify(entitlementService).grantIncluded(order, physicalItemId);
+    }
+
+    @Test
+    void physical_proceeds_eligible_when_window_closes_ok() {
+        // given
+        var order = lockedOrder(OrderStatus.PAID);
+        lockedDelivered(physicalItemId, now().minusHours(48).minusMinutes(1));
+        when(entitlementService.grantIncluded(order, physicalItemId)).thenReturn(Optional.of(new Entitlement()));
+
+        // when
+        var granted = service.grantIfWindowClosed(physicalItemId);
+
+        // then
+        assertThat(granted).isTrue();
+        verify(entitlementService).grantIncluded(order, physicalItemId);
+        verify(proceedsService).releasePhysical(physicalItemId);
+    }
+
+    @Test
+    void physical_proceeds_held_while_return_open_ko() {
+        // given
+        lockedOrder(OrderStatus.PAID);
+        lockedDelivered(physicalItemId, now().minusHours(49));
+        when(returnRequestRepository.existsByOrderItemIdAndStatusNot(physicalItemId, "REJECTED")).thenReturn(true);
+
+        // when
+        service.grantIfWindowClosed(physicalItemId);
+
+        // then
+        verifyNoInteractions(proceedsService);
+    }
+
+    @Test
+    void physical_proceeds_held_before_window_closes_ko() {
+        // given
+        lockedOrder(OrderStatus.PAID);
+        lockedDelivered(physicalItemId, now().minusHours(47));
+
+        // when
+        service.grantIfWindowClosed(physicalItemId);
+
+        // then
+        verifyNoInteractions(proceedsService);
     }
 
     private Order lockedOrder(OrderStatus status) {

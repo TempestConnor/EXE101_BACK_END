@@ -8,6 +8,7 @@ import com.exe101.order.model.PaymentSettlement;
 import com.exe101.order.model.PaymentTarget;
 import com.exe101.order.service.OrderService;
 import com.exe101.payment.mapper.PaymentEntityMapper;
+import com.exe101.proceeds.service.ProceedsService;
 import com.exe101.payment.model.Attempt;
 import com.exe101.payment.model.AttemptStatus;
 import com.exe101.payment.model.EventOutcome;
@@ -42,6 +43,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final VnpayGateway gateway;
     private final EntitlementService entitlementService;
     private final FulfillmentService fulfillmentService;
+    private final ProceedsService proceedsService;
 
     // Every call is a new attempt (§12.4); only a provider-confirmed success has any effect on the Order.
     @Override
@@ -128,11 +130,13 @@ public class PaymentServiceImpl implements PaymentService {
         attempt.setConfirmedAt(receivedAt);
         attemptRepository.saveAndFlush(attempt);
 
-        // Side effects of a confirmed payment share its transaction; an exception never grants anything (§12.12).
+        // Side effects of a confirmed payment share its transaction; an exception never grants or holds anything
+        // (§12.12).
         if (paid) {
             Order order = orderService.getLockedByPayment(attempt.getPaymentId());
             entitlementService.grantDigital(order);
             fulfillmentService.start(order);
+            proceedsService.recordPaid(order);
         }
 
         return switch (settlement) {

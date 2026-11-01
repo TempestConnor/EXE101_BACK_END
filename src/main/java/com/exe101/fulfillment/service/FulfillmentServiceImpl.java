@@ -17,6 +17,7 @@ import com.exe101.listing.model.ListingType;
 import com.exe101.order.model.Order;
 import com.exe101.order.model.OrderStatus;
 import com.exe101.order.service.OrderService;
+import com.exe101.proceeds.service.ProceedsService;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -45,6 +46,7 @@ public class FulfillmentServiceImpl implements FulfillmentService {
     private final FulfillmentEntityMapper mapper;
     private final EntitlementService entitlementService;
     private final OrderService orderService;
+    private final ProceedsService proceedsService;
     private final FulfillmentProperties properties;
 
     // §9.10: a paid Order starts every physical item at PENDING. Runs in the payment-success transaction, which
@@ -161,7 +163,11 @@ public class FulfillmentServiceImpl implements FulfillmentService {
             return false;
         }
 
-        return entitlementService.grantIncluded(order, orderItemId).isPresent();
+        boolean granted = entitlementService.grantIncluded(order, orderItemId).isPresent();
+        // Amendment §B.7: the same milestone releases the item's held proceeds.
+        proceedsService.releasePhysical(orderItemId);
+
+        return granted;
     }
 
     private Fulfillment begin(Long orderItemId, OffsetDateTime startedAt) {

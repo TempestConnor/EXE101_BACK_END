@@ -78,6 +78,13 @@ public enum AppErrorMessage {
     FULFILLMENT_STATUS_CHANGE_NOT_ALLOWED(HttpStatus.CONFLICT, "This fulfillment status change is not allowed."),
     FULFILLMENT_SHIPMENT_INVALID(HttpStatus.BAD_REQUEST,
         "Carrier and tracking are recorded only when shipping, and tracking needs a carrier."),
+    PROCEEDS_NOT_FOUND(HttpStatus.NOT_FOUND, "Artist proceeds were not found."),
+    PROCEEDS_NOT_RELEASABLE(HttpStatus.CONFLICT, "Only eligible proceeds that are not being released can be released."),
+    RELEASE_NOT_FOUND(HttpStatus.NOT_FOUND, "Release was not found."),
+    RELEASE_STATUS_CHANGE_NOT_ALLOWED(HttpStatus.CONFLICT, "This release status change is not allowed."),
+    RELEASE_REFERENCE_INVALID(HttpStatus.BAD_REQUEST,
+        "A transfer reference is required when recording PAID and accepted only then."),
+    RELEASE_REFERENCE_IN_USE(HttpStatus.CONFLICT, "This transfer reference is already recorded for another release."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "The request could not be completed.");
 
     private final HttpStatus status;

@@ -62,8 +62,7 @@ status), `403` for non-Admin tokens.
 
 ## Known limits
 
-- Releasing physical Artist proceeds when the window closes belongs to F14; the acceptance criterion's "proceeds
-  become eligible" waits for it.
+- The proceeds release at the same window close is added by F14 ([Artist proceeds](artist-proceeds.md)).
 - Return requests, `FAILED`/`CANCELLED` and the refund route belong to F15. Until then no refund requests exist,
   so every delivered item is granted when its window closes.
 - Whether 48 hours meets consumer-protection law, and the return-shipping procedure, are open (amendment §E).

@@ -73,6 +73,9 @@ public class SecurityConfiguration {
                 .requestMatchers("/cart", "/cart/**").hasRole("CUSTOMER")
                 .requestMatchers("/orders", "/orders/**").hasRole("CUSTOMER")
                 .requestMatchers("/admin/fulfillments", "/admin/fulfillments/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/proceeds", "/proceeds/releases").hasRole("CUSTOMER")
+                .requestMatchers("/admin/releases", "/admin/releases/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/admin/proceeds/*/releases").hasRole("ADMIN")
                 // Authenticated by the VNPay signature, not by a token.
                 .requestMatchers(HttpMethod.GET, "/payments/vnpay/ipn").permitAll()
                 .requestMatchers(HttpMethod.GET, "/catalog/artworks", "/catalog/artworks/**").permitAll()

@@ -30,6 +30,7 @@ import com.exe101.payment.model.EventOutcome;
 import com.exe101.payment.model.VnpayReply;
 import com.exe101.payment.repository.PaymentAttemptRepository;
 import com.exe101.payment.repository.ProviderEventRepository;
+import com.exe101.proceeds.service.ProceedsService;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.net.URLDecoder;
@@ -116,6 +117,8 @@ class PaymentServiceTest {
     private EntitlementService entitlementService;
     @Mock
     private FulfillmentService fulfillmentService;
+    @Mock
+    private ProceedsService proceedsService;
     private PaymentServiceImpl service;
     private MarketplaceOrder order;
     private Payment payment;
@@ -132,7 +135,7 @@ class PaymentServiceTest {
         var gateway = new VnpayGateway(new VnpayProperties(tmnCode, hashSecret, URI.create(payUrl),
             URI.create("http://localhost:3000/payment/return")));
         service = new PaymentServiceImpl(attemptRepository, eventRepository, new PaymentEntityMapperImpl(),
-            orderService, gateway, entitlementService, fulfillmentService);
+            orderService, gateway, entitlementService, fulfillmentService, proceedsService);
         order = order("PENDING_PAYMENT", now().plusMinutes(20));
         payment = payment("PENDING");
         savedAttempts = new ArrayList<>();
@@ -423,6 +426,29 @@ class PaymentServiceTest {
             () -> assertThat(savedEvents.getFirst().getOutcome()).isEqualTo("EXCEPTION")
         );
         verify(orderRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void exception_payment_creates_no_proceeds_ko() {
+        // given
+        // One late success and one for the wrong amount; neither holds proceeds (§12.12).
+        var lateRef = "4".repeat(32);
+        var wrongAmountRef = "5".repeat(32);
+        givenAttempt(lateRef, "INITIATED");
+        givenAttempt(wrongAmountRef, "INITIATED");
+        service.handleVnpayNotification(signed(notification(wrongAmountRef, "15000000", "00")));
+        order.setExpiresAt(now().minusSeconds(5));
+
+        // when
+        var result = service.handleVnpayNotification(signed(withTransaction(notification(lateRef, totalTimes100,
+            "00"), "14123458")));
+
+        // then
+        assertAll(
+            () -> assertThat(result.getOutcome()).isEqualTo(EventOutcome.EXCEPTION),
+            () -> assertThat(order.getStatus()).isEqualTo("PENDING_PAYMENT")
+        );
+        verifyNoInteractions(proceedsService);
     }
 
     @Test
