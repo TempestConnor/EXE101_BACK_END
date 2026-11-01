@@ -1,6 +1,6 @@
 ---
 name: next-feature
-description: Start the next feature from committed code — pick the next in-scope feature (F01–F21), create its `_feature_fNN` branch, and produce a kickoff brief with a test list to approve. Does not write production code.
+description: Start the next feature from committed code — pick the next in-scope feature (F01–F21), create its `_feature_fNN` branch, ask the kickoff questions and test-list approval, then implement and commit.
 argument-hint: "[feature id, e.g. F04 — optional, defaults to the next in-scope feature]"
 disable-model-invocation: true
 allowed-tools: Bash(git status:*), Bash(git fetch:*), Bash(git branch:*), Bash(git log:*), Bash(git show:*), Bash(git ls-tree:*), Bash(git merge-base:*), Bash(git rev-parse:*), Bash(git switch:*), Read, Grep, Glob, AskUserQuestion
@@ -46,7 +46,7 @@ order. Then:
 - **Argument given:** use it, but if it is outside the current priority, deferred, or
   removed by an amendment, explain that and ask before continuing.
 - Unfinished parts of already-implemented features (for example, recorded Policy
-  acceptance in F01) are reported in the brief. Never pick them as "the next
+  acceptance in F01) are noted in the kickoff summary. Never pick them as "the next
   feature" unless the user asks.
 
 State the chosen feature and the evidence for it in one or two lines.
@@ -78,23 +78,30 @@ existing convention.
        `git merge --no-ff <current branch>`. Stop on any conflict and report it;
        do not resolve conflicts on the user's behalf. Base is then `main`.
      - **Unclear:** ask the user which applies, giving the evidence both ways.
-   State which rule applied and the dependency evidence in the brief.
+   State which rule applied in the one-line kickoff summary (section 5).
 3. `git switch -c _feature_f<NN> <base>`.
 4. Do not push, neither the new branch nor `main`. Offer
    `git push -u origin _feature_f<NN>` (and `git push origin main` after a merge)
    as next steps.
 
-## 5. Kickoff brief
+## 5. Kickoff analysis and questions
 
 Read the feature's section in `docs/EXE101_Features_Specification.md`, the business
 rules it cites in `docs/Marketplace_Business_Rules_Final.md` (including the
-31 October 2026 amendment), and section D (Q01–Q19). Then report, concisely:
+31 October 2026 amendment), and section D (Q01–Q19).
+
+Work through items 1–9 below **without writing them out as a report**. The user does
+not read a brief; the analysis feeds the questions and the implementation. The only
+text before the AskUserQuestion call is a kickoff summary of at most three lines:
+feature ID and title, branch and base (stacked / merged into `main` / from `main`),
+and any unfinished items in earlier features (item 9). Everything the user must see
+to decide goes inside the AskUserQuestion call itself.
 
 1. **Feature** — ID, title, branch, base, whether it is stacked or a merge into
    `main` happened, and the dependency evidence.
 2. **Scope for this increment** — what the spec requires, as amended by
-   `implementation-scope.md`; call out anything explicitly out of scope.
-3. **Acceptance criteria** — from the spec, verbatim or tightly paraphrased.
+   `implementation-scope.md`; note anything explicitly out of scope.
+3. **Acceptance criteria** — from the spec.
 4. **Open questions** — start from the Q-items and **Needs Clarification** notes that
    affect this feature, then drop every one that is:
    - **Resolved** or **Moot** in the section D Status column, or answered in a
@@ -103,7 +110,6 @@ rules it cites in `docs/Marketplace_Business_Rules_Final.md` (including the
    - assigned to a later feature or priority by `implementation-scope.md` or by an
      earlier feature doc's "out of scope here" list.
 
-   List what was dropped in one line with the reason, so a wrong drop is visible.
    Sort the rest into two groups, each with the code path it affects:
    - **Blocking** — financial policy (amounts, rounding, refunds, releases, payment
      anomalies), schema changes, or decisions that are hard to reverse once data
@@ -149,12 +155,19 @@ rules it cites in `docs/Marketplace_Business_Rules_Final.md` (including the
    If the build fails, fix it or report the output. Do not commit a failing build.
 9. **Unfinished items in earlier features** — gaps found in step 2/3.
 
-End with one AskUserQuestion call (at most four questions; batch the rest in the
-brief). Ask:
-- one question per **Blocking** item, with its options;
-- one question to accept every **Recommended** answer as listed, with an option to
-  override some, naming them in a follow-up;
-- whether the test list in item 8 is approved as written.
+End with one AskUserQuestion call (at most four questions). Ask:
+- one question per **Blocking** item, with its options; put each option's
+  consequences in its description;
+- one question to accept every **Recommended** answer, listing each in the question
+  text as one line (`item — recommended answer — reason`), with an option to override
+  some, naming them in a follow-up;
+- whether the test list in item 8 is approved as written. Put the full test list in
+  the `preview` of both options (`Approved as written`, `Changes needed`), so it is on
+  screen while the user decides.
+
+If there are more Blocking items than fit, ask the first ones and follow up with a
+second AskUserQuestion before implementing. If there are no open questions at all,
+ask only the test-list approval.
 
 Record every answer during implementation, and commit it with the feature: put the
 decision in the feature's doc (`docs/<feature>.md`, under "Approved policies"), set
