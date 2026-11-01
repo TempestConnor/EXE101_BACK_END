@@ -70,7 +70,8 @@ existing convention.
      work introduces. Needing something already on `main` is not a dependency.
      - **Depends — stack:** base is the current branch.
      - **Independent — merge, then branch from main:** first run the current
-       branch's tests (`.\mvnw.cmd clean package`). If they fail, stop and report
+       branch's targeted check (section 5, item 8) for the classes its unmerged
+       commits affect; the full suite only if the user asks. If it fails, stop and report
        the output; do not merge. If they pass, ask the user (with
        AskUserQuestion) to confirm merging the current branch into `main`,
        naming the unmerged commits. On a yes:
@@ -144,7 +145,14 @@ to decide goes inside the AskUserQuestion call itself.
 
    When the implementation is done, commit it on `_feature_f<NN>` without asking,
    once all of these hold:
-   - every approved test is written, and `.\mvnw.cmd clean package` passes;
+   - every approved test is written, and the **targeted check** passes:
+     `.\mvnw.cmd clean test-compile` (the whole project still compiles), then
+     `.\mvnw.cmd test "-Dtest=<classes>"` for the affected classes only — the
+     feature's own tests, the tests of shared code it changed (for example
+     payment, ledger, proceeds), and `DatabaseMappingTest` when an entity or the
+     schema changed — with `DB_URL` and `TEST_DB_URL` pointed at
+     `CuratedArtworkMarketplace_Test`. Do not run the full suite
+     (`.\mvnw.cmd clean package`) unless the user asks for it;
    - the current branch is still `_feature_f<NN>`;
    - `git status --porcelain` lists only changes made for this feature. If it shows
      anything else, stop and ask instead of committing.
@@ -152,7 +160,8 @@ to decide goes inside the AskUserQuestion call itself.
    Stage those files and commit with the subject `f<NN> implemented.`, a short body
    listing what was built and any deferred items, and the session's attribution
    lines. Do not push; offer `git push -u origin _feature_f<NN>` as the next step.
-   If the build fails, fix it or report the output. Do not commit a failing build.
+   If the check fails, fix it or report the output. Do not commit a failing check.
+   In the report, name the classes run and say that the full suite was not run.
 9. **Unfinished items in earlier features** — gaps found in step 2/3.
 
 End with one AskUserQuestion call (at most four questions). Ask:
@@ -182,8 +191,8 @@ separate "go". In the same run:
 
 - **All answered without overrides or changes:** acknowledge the decisions in a
   line or two, then start implementing at once — production code, the feature doc
-  and spec updates, then exactly the approved tests, then `.\mvnw.cmd clean package`
-  and the automatic commit from item 8.
+  and spec updates, then exactly the approved tests, then the targeted check and
+  the automatic commit from item 8.
 - **"Override some" or "Changes needed" chosen:** ask only for those specifics
   (one AskUserQuestion, or a short question if free text is needed), then proceed
   as above once answered.
