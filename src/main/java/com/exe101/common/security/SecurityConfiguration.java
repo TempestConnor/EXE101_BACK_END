@@ -60,6 +60,7 @@ public class SecurityConfiguration {
                 .requestMatchers("/commissions", "/commissions/**").hasRole("CUSTOMER")
                 .requestMatchers(HttpMethod.POST, "/admin/artists/*/deactivation", "/admin/artists/*/reinstatement")
                     .hasRole("ADMIN")
+                .requestMatchers("/admin/commission-disputes", "/admin/commission-disputes/**").hasRole("ADMIN")
                 .requestMatchers("/addresses", "/addresses/*").hasRole("CUSTOMER")
                 .requestMatchers(HttpMethod.GET, "/provinces/supported").hasRole("CUSTOMER")
                 .requestMatchers(HttpMethod.GET, "/provinces").hasRole("ADMIN")

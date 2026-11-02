@@ -3,6 +3,7 @@ package com.exe101.commission.service;
 import com.exe101.artist.model.Artist;
 import com.exe101.artist.service.ArtistService;
 import com.exe101.commission.model.QuoteSplit;
+import com.exe101.commission.repository.CancellationRequestRepository;
 import com.exe101.commission.repository.CommissionEventRepository;
 import com.exe101.commission.repository.CommissionQuoteRepository;
 import com.exe101.commission.repository.CommissionRepository;
@@ -57,6 +58,8 @@ class CommissionPaymentServiceTest {
     private CommissionEventRepository eventRepository;
     @Mock
     private QuotePaymentRepository paymentRepository;
+    @Mock
+    private CancellationRequestRepository cancellationRepository;
     @Mock
     private ArtistService artistService;
     @InjectMocks
@@ -608,6 +611,80 @@ class CommissionPaymentServiceTest {
             () -> assertThat(commission.getStatus()).isEqualTo("AWAITING_PAYMENT")
         );
         verify(paymentRepository, never()).saveAndFlush(any());
+        verify(repository, never()).saveAndFlush(any());
+        verify(eventRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void pending_cancellation_blocks_payment_attempt_ko() {
+        // given
+        givenCommission("AWAITING_PAYMENT");
+        givenQuote("ACCEPTED", "100001.0000", "10001.0000");
+        givenPayment("SUCCEEDED", "55002.0000");
+        when(cancellationRepository.existsByCommissionIdAndStatus(commissionId, "PENDING")).thenReturn(true);
+
+        // when / then
+        assertRejected(() -> service.preparePayment(customerId, commissionId, quoteId),
+            AppErrorMessage.CANCELLATION_PENDING);
+    }
+
+    @Test
+    void disputed_commission_refuses_payment_attempt_ko() {
+        // given
+        givenCommission("DISPUTED");
+        givenQuote("ACCEPTED", "100001.0000", "10001.0000");
+
+        // when / then
+        assertRejected(() -> service.preparePayment(customerId, commissionId, quoteId),
+            AppErrorMessage.QUOTE_NOT_PAYABLE);
+    }
+
+    @Test
+    void quote_payment_success_on_disputed_commission_ko() {
+        // given
+        // A VNPay page opened before the dispute is paid while the Commission is DISPUTED.
+        var commission = givenCommission("DISPUTED");
+        var quote = givenQuote("ACCEPTED", "100001.0000", "10001.0000");
+        givenPayment("SUCCEEDED", "55002.0000");
+        var payment = givenFinalSettling("PENDING", "55000.0000");
+
+        // when
+        var result = service.settlePayment(finalPaymentId, new BigDecimal("55000"), now());
+
+        // then
+        assertAll(
+            () -> assertThat(result.getSettlement()).isEqualTo(PaymentSettlement.NOT_PAYABLE),
+            () -> assertThat(payment.getStatus()).isEqualTo("PENDING"),
+            () -> assertThat(payment.getSucceededAt()).isNull(),
+            () -> assertThat(quote.getStatus()).isEqualTo("ACCEPTED"),
+            () -> assertThat(commission.getStatus()).isEqualTo("DISPUTED")
+        );
+        verify(paymentRepository, never()).saveAndFlush(any());
+        verify(quoteRepository, never()).saveAndFlush(any());
+        verify(repository, never()).saveAndFlush(any());
+        verify(eventRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void quote_payment_success_on_cancelled_commission_ko() {
+        // given
+        // Cancelling before the first payment cancelled the Payment; the page was still paid.
+        var commission = givenCommission("CANCELLED");
+        var quote = givenQuote("ACCEPTED", "100001.0000", "10001.0000");
+        var payment = givenSettling("CANCELLED", "55002.0000");
+
+        // when
+        var result = service.settlePayment(paymentId, new BigDecimal("55002"), now());
+
+        // then
+        assertAll(
+            () -> assertThat(result.getSettlement()).isEqualTo(PaymentSettlement.NOT_PAYABLE),
+            () -> assertThat(payment.getStatus()).isEqualTo("EXCEPTION"),
+            () -> assertThat(payment.getSucceededAt()).isNull(),
+            () -> assertThat(quote.getStatus()).isEqualTo("ACCEPTED"),
+            () -> assertThat(commission.getStatus()).isEqualTo("CANCELLED")
+        );
+        verify(quoteRepository, never()).saveAndFlush(any());
         verify(repository, never()).saveAndFlush(any());
         verify(eventRepository, never()).saveAndFlush(any());
     }

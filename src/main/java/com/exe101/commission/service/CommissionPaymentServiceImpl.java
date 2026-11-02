@@ -2,11 +2,13 @@ package com.exe101.commission.service;
 
 import com.exe101.artist.model.Artist;
 import com.exe101.artist.service.ArtistService;
+import com.exe101.commission.model.CancellationStatus;
 import com.exe101.commission.model.CommissionStatus;
 import com.exe101.commission.model.QuotePayment;
 import com.exe101.commission.model.QuoteSettlement;
 import com.exe101.commission.model.QuoteSplit;
 import com.exe101.commission.model.QuoteStatus;
+import com.exe101.commission.repository.CancellationRequestRepository;
 import com.exe101.commission.repository.CommissionEventRepository;
 import com.exe101.commission.repository.CommissionQuoteRepository;
 import com.exe101.commission.repository.CommissionRepository;
@@ -44,6 +46,7 @@ public class CommissionPaymentServiceImpl implements CommissionPaymentService {
     private final CommissionQuoteRepository quoteRepository;
     private final CommissionEventRepository eventRepository;
     private final QuotePaymentRepository paymentRepository;
+    private final CancellationRequestRepository cancellationRepository;
     private final ArtistService artistService;
 
     // Each installment's Payment is created with its first attempt, so Quotes accepted before Quote payments existed
@@ -57,6 +60,11 @@ public class CommissionPaymentServiceImpl implements CommissionPaymentService {
         requireCustomer(userId, commission);
         CommissionQuote quote = quoteRepository.findByQuoteIdAndCommissionId(quoteId, commissionId)
             .orElseThrow(() -> new AppException(AppErrorMessage.QUOTE_NOT_FOUND));
+
+        // No new payment while a cancellation request is pending (§24.8); a DISPUTED Commission is not payable.
+        if (cancellationRepository.existsByCommissionIdAndStatus(commissionId, CancellationStatus.PENDING.name())) {
+            throw new AppException(AppErrorMessage.CANCELLATION_PENDING);
+        }
         boolean payable = CommissionStatus.AWAITING_PAYMENT.name().equals(commission.getStatus())
             && QuoteStatus.ACCEPTED.name().equals(quote.getStatus());
 
@@ -115,9 +123,13 @@ public class CommissionPaymentServiceImpl implements CommissionPaymentService {
             && QuoteStatus.ACCEPTED.name().equals(quote.getStatus())
             && PaymentStatus.PENDING.name().equals(payment.getStatus());
 
+        // A dispute only interrupts the Commission: its Payment stays PENDING, so the installment can be paid again
+        // if the Admin lets the Commission continue.
         if (!payable) {
-            payment.setStatus(PaymentStatus.EXCEPTION.name());
-            paymentRepository.saveAndFlush(payment);
+            if (!CommissionStatus.DISPUTED.name().equals(commission.getStatus())) {
+                payment.setStatus(PaymentStatus.EXCEPTION.name());
+                paymentRepository.saveAndFlush(payment);
+            }
 
             return outcome(commissionId, PaymentSettlement.NOT_PAYABLE);
         }
@@ -134,6 +146,7 @@ public class CommissionPaymentServiceImpl implements CommissionPaymentService {
             quote.setPaidAt(receivedAt);
             quoteRepository.saveAndFlush(quote);
             commission.setCompletedAt(receivedAt);
+            closePendingCancellation(commission, receivedAt);
         }
 
         String from = commission.getStatus();
@@ -177,6 +190,20 @@ public class CommissionPaymentServiceImpl implements CommissionPaymentService {
             quote.getQuoteId(), installment, saved.getPaymentId(), saved.getAmount());
 
         return saved;
+    }
+
+    // A payment page opened before a cancellation was requested can still be paid. The final payment then completes
+    // the Commission, and the request it overtook is closed as REJECTED, with the Customer, who paid, as actor.
+    private void closePendingCancellation(Commission commission, OffsetDateTime closedAt) {
+        cancellationRepository.findByCommissionIdAndStatus(commission.getCommissionId(),
+            CancellationStatus.PENDING.name()).ifPresent(request -> {
+                request.setStatus(CancellationStatus.REJECTED.name());
+                request.setResolvedAt(closedAt);
+                cancellationRepository.saveAndFlush(request);
+                eventRepository.saveAndFlush(new CommissionEvent(commission.getCommissionId(), "CANCELLATION_CLOSED",
+                    null, null, request.getCancellationId(), commission.getCustomerId(), null, closedAt,
+                    "The final payment completed the Commission."));
+            });
     }
 
     private QuoteSettlement outcome(Long commissionId, PaymentSettlement settlement) {

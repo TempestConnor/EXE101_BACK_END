@@ -8,6 +8,7 @@ import com.exe101.commission.mapper.CommissionQuoteEntityMapper;
 import com.exe101.commission.model.CommissionStatus;
 import com.exe101.commission.model.QuoteStatus;
 import com.exe101.commission.model.QuoteTerms;
+import com.exe101.commission.repository.CancellationRequestRepository;
 import com.exe101.commission.repository.CommissionEventRepository;
 import com.exe101.commission.repository.CommissionQuoteRepository;
 import com.exe101.commission.repository.CommissionRepository;
@@ -56,6 +57,8 @@ class CommissionQuoteServiceTest {
     private CommissionQuoteRepository quoteRepository;
     @Mock
     private CommissionEventRepository eventRepository;
+    @Mock
+    private CancellationRequestRepository cancellationRepository;
     @Mock
     private ArtistService artistService;
     @Spy
@@ -224,6 +227,17 @@ class CommissionQuoteServiceTest {
         // when / then
         assertRejected(() -> service.offer(artistUserId, commissionId, terms("100000", "Sketch", "1 week")),
             AppErrorMessage.COMMISSION_NOT_FOUND);
+    }
+
+    @Test
+    void pending_cancellation_blocks_quote_offer_ko() {
+        // given
+        givenCommission("IN_PROGRESS");
+        when(cancellationRepository.existsByCommissionIdAndStatus(commissionId, "PENDING")).thenReturn(true);
+
+        // when / then
+        assertRejected(() -> service.offer(artistUserId, commissionId, terms("100000", "Sketch", "1 week")),
+            AppErrorMessage.CANCELLATION_PENDING);
     }
 
     @Test
@@ -532,8 +546,9 @@ class CommissionQuoteServiceTest {
     }
 
     private CommissionQuoteServiceImpl quoteService(String taxRate) {
-        return new CommissionQuoteServiceImpl(repository, quoteRepository, eventRepository, commissionMapper, mapper,
-            artistService, new CheckoutProperties(new BigDecimal(taxRate), BigDecimal.ZERO, 5));
+        return new CommissionQuoteServiceImpl(repository, quoteRepository, eventRepository, cancellationRepository,
+            commissionMapper, mapper, artistService,
+            new CheckoutProperties(new BigDecimal(taxRate), BigDecimal.ZERO, 5));
     }
 
     private Commission givenCommission(String status) {

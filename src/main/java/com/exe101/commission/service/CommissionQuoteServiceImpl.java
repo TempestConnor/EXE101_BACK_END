@@ -5,11 +5,13 @@ import com.exe101.artist.service.ArtistService;
 import com.exe101.cart.config.CheckoutProperties;
 import com.exe101.commission.mapper.CommissionEntityMapper;
 import com.exe101.commission.mapper.CommissionQuoteEntityMapper;
+import com.exe101.commission.model.CancellationStatus;
 import com.exe101.commission.model.Commission;
 import com.exe101.commission.model.CommissionQuote;
 import com.exe101.commission.model.CommissionStatus;
 import com.exe101.commission.model.QuoteStatus;
 import com.exe101.commission.model.QuoteTerms;
+import com.exe101.commission.repository.CancellationRequestRepository;
 import com.exe101.commission.repository.CommissionEventRepository;
 import com.exe101.commission.repository.CommissionQuoteRepository;
 import com.exe101.commission.repository.CommissionRepository;
@@ -44,6 +46,7 @@ public class CommissionQuoteServiceImpl implements CommissionQuoteService {
     private final CommissionRepository repository;
     private final CommissionQuoteRepository quoteRepository;
     private final CommissionEventRepository eventRepository;
+    private final CancellationRequestRepository cancellationRepository;
     private final CommissionEntityMapper commissionMapper;
     private final CommissionQuoteEntityMapper mapper;
     private final ArtistService artistService;
@@ -71,6 +74,7 @@ public class CommissionQuoteServiceImpl implements CommissionQuoteService {
         BigDecimal tax = price.multiply(checkout.taxRate()).setScale(0, RoundingMode.HALF_UP);
         com.exe101.entity.Commission commission = lock(commissionId);
         requireArtist(userId, commission);
+        requireNoPendingCancellation(commissionId);
         CommissionStatus status = requireOpen(commission);
 
         if (status == CommissionStatus.QUOTED) {
@@ -186,7 +190,19 @@ public class CommissionQuoteServiceImpl implements CommissionQuoteService {
             throw new AppException(AppErrorMessage.QUOTE_NOT_OFFERED);
         }
 
+        // A dispute interrupts an open offer: nobody answers it until the Admin resolves the dispute.
+        if (!CommissionStatus.QUOTED.name().equals(commission.getStatus())) {
+            throw new AppException(AppErrorMessage.COMMISSION_ACTION_NOT_ALLOWED);
+        }
+
         return quote;
+    }
+
+    // While a cancellation request is pending, the formal actions it would conflict with wait for its answer (§24.8).
+    private void requireNoPendingCancellation(Long commissionId) {
+        if (cancellationRepository.existsByCommissionIdAndStatus(commissionId, CancellationStatus.PENDING.name())) {
+            throw new AppException(AppErrorMessage.CANCELLATION_PENDING);
+        }
     }
 
     private void changeStatus(

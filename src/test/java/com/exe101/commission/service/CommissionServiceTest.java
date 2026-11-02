@@ -265,6 +265,24 @@ class CommissionServiceTest {
     }
 
     @Test
+    void message_while_cancellation_pending_ok() {
+        // given
+        // Messages stay possible while a formal cancellation request awaits its answer (§24.7).
+        when(repository.findWithSharedLockByCommissionId(commissionId))
+            .thenReturn(Optional.of(commission("IN_PROGRESS")));
+        givenMessageSaved();
+
+        // when
+        var result = service.sendMessage(customerId, commissionId, "Can we talk about the cancellation?");
+
+        // then
+        assertAll(
+            () -> assertThat(result.getMessageId()).isEqualTo(21L),
+            () -> assertThat(result.getBody()).isEqualTo("Can we talk about the cancellation?")
+        );
+    }
+
+    @Test
     void send_message_non_participant_ko() {
         // given
         when(repository.findWithSharedLockByCommissionId(commissionId))

@@ -4,6 +4,7 @@ import com.exe101.artist.model.Artist;
 import com.exe101.artist.service.ArtistService;
 import com.exe101.commission.mapper.CommissionDeliverableEntityMapper;
 import com.exe101.commission.mapper.CommissionEntityMapper;
+import com.exe101.commission.model.CancellationStatus;
 import com.exe101.commission.model.Commission;
 import com.exe101.commission.model.CommissionDeliverable;
 import com.exe101.commission.model.CommissionStatus;
@@ -13,6 +14,7 @@ import com.exe101.commission.model.FileUpload;
 import com.exe101.commission.model.QuoteSplit;
 import com.exe101.commission.model.QuoteStatus;
 import com.exe101.commission.model.RevisionRequest;
+import com.exe101.commission.repository.CancellationRequestRepository;
 import com.exe101.commission.repository.CommissionDeliverableRepository;
 import com.exe101.commission.repository.CommissionEventRepository;
 import com.exe101.commission.repository.CommissionQuoteRepository;
@@ -62,6 +64,7 @@ public class CommissionDeliveryServiceImpl implements CommissionDeliveryService 
     private final RevisionRequestRepository revisionRepository;
     private final CommissionEventRepository eventRepository;
     private final CommissionQuoteRepository quoteRepository;
+    private final CancellationRequestRepository cancellationRepository;
     private final CommissionEntityMapper commissionMapper;
     private final CommissionDeliverableEntityMapper mapper;
     private final ArtistService artistService;
@@ -74,6 +77,19 @@ public class CommissionDeliveryServiceImpl implements CommissionDeliveryService 
         com.exe101.entity.Commission commission = repository.findById(commissionId)
             .orElseThrow(() -> new AppException(AppErrorMessage.COMMISSION_NOT_FOUND));
         isArtist(userId, commission);
+
+        return listVersions(commissionId);
+    }
+
+    // The Admin reads the versions as evidence when reviewing a dispute (§26.9); the files stay with the
+    // participants.
+    @Override
+    @Transactional(readOnly = true)
+    public List<CommissionDeliverable> listForStaff(Long commissionId) {
+        return listVersions(commissionId);
+    }
+
+    private List<CommissionDeliverable> listVersions(Long commissionId) {
         List<com.exe101.entity.CommissionDeliverable> deliverables =
             deliverableRepository.findByCommissionIdOrderByVersionNoAsc(commissionId);
 
@@ -123,6 +139,7 @@ public class CommissionDeliveryServiceImpl implements CommissionDeliveryService 
             .toList();
         com.exe101.entity.Commission commission = lock(commissionId);
         requireArtist(userId, commission);
+        requireNoPendingCancellation(commissionId);
         CommissionStatus status = requireOpen(commission);
 
         if (!workStatuses.contains(status)) {
@@ -247,6 +264,7 @@ public class CommissionDeliveryServiceImpl implements CommissionDeliveryService 
         com.exe101.entity.CommissionDeliverable deliverable = deliverableRepository
             .findByDeliverableIdAndCommissionId(deliverableId, commission.getCommissionId())
             .orElseThrow(() -> new AppException(AppErrorMessage.DELIVERABLE_NOT_FOUND));
+        requireNoPendingCancellation(commission.getCommissionId());
         CommissionStatus status = requireOpen(commission);
 
         if (status != CommissionStatus.SUBMITTED_FOR_REVIEW) {
@@ -255,6 +273,13 @@ public class CommissionDeliveryServiceImpl implements CommissionDeliveryService 
 
         if (deliverable.getVersionNo() != deliverableRepository.findLastVersionNo(commission.getCommissionId())) {
             throw new AppException(AppErrorMessage.DELIVERABLE_NOT_CURRENT);
+        }
+    }
+
+    // While a cancellation request is pending, the formal actions it would conflict with wait for its answer (§24.8).
+    private void requireNoPendingCancellation(Long commissionId) {
+        if (cancellationRepository.existsByCommissionIdAndStatus(commissionId, CancellationStatus.PENDING.name())) {
+            throw new AppException(AppErrorMessage.CANCELLATION_PENDING);
         }
     }
 

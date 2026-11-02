@@ -65,15 +65,16 @@ No new error codes. `409 QUOTE_NOT_PAYABLE` when no installment is due, `403 DEL
 ## Deferred
 
 - **Change Quotes** (§21, D10). Completion assumes the Commission's one accepted Quote.
-- **Cancellation, disputes and refunds** (F19, F20), including how an unpaid approved Commission is settled.
+- **Refunds** (F20), including how the held first payment of a cancelled Commission is settled. Cancellation and
+  disputes are F19 ([Commission cancellation and disputes](commission-cancellation.md)).
 - **The review preview** (format undecided, amendment §E) and **the license contract** (amendment §D.17).
 
 ## Known limits
 
 - **An approved Commission can wait unpaid forever.** Its first installment stays `HELD`, so the Artist is not paid
-  for finished work, and the Customer cannot download it. The parties settle it between them, but the system has no
-  recorded way to release or refund the held first payment until F19/F20. Closing it: a cancellation with an agreed
-  outcome (F19/F20), or a final-payment deadline.
+  for finished work, and the Customer cannot download it. The parties can now cancel it (F19), but the system has no
+  recorded way to release or refund the held first payment until F20. Closing it: F20's refund decision, or a
+  final-payment deadline.
 - **`AWAITING_PAYMENT` still means two things:** the first payment is due, or the final one is (installment 1
   `SUCCEEDED`). The payment endpoint tells them apart; clients read the Quote's payments. Closing it: a separate status,
   which needs a migration.

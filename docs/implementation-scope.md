@@ -103,6 +103,12 @@ proceeds, following [Commission final payment and completion](commission-complet
 (rule change of 2 November 2026, amendment §D.14): an unpaid approved Commission waits for the Customer. A 0 VND final
 installment completes at approval. Change Quotes, cancellation and refunds (F19/F20) and the license contract come later.
 
+F19 increment (priority 3): either participant cancels at once before the first payment; a paid Commission needs a
+cancellation request the other participant accepts; a dispute makes the Commission `DISPUTED` until the Admin reviews
+and resolves it, audited, with `CONTINUE` restoring the interrupted status. No money moves: held installments stay
+`HELD`, and a payment landing on a cancelled or disputed Commission is an exception, following [Commission cancellation
+and disputes](commission-cancellation.md). Refunds (F20), change Quotes and the license contract come later.
+
 Requirements change recorded 31 October 2026: the site is the storefront of one
 Artist team, with no Platform Fee, held funds released to each Artist's own
 account, a 48-hour post-delivery return window, split Commission payments, and

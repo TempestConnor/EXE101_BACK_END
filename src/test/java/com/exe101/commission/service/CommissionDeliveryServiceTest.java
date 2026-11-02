@@ -7,6 +7,7 @@ import com.exe101.commission.mapper.CommissionEntityMapper;
 import com.exe101.commission.model.CommissionStatus;
 import com.exe101.commission.model.DeliverableSubmission;
 import com.exe101.commission.model.FileUpload;
+import com.exe101.commission.repository.CancellationRequestRepository;
 import com.exe101.commission.repository.CommissionDeliverableRepository;
 import com.exe101.commission.repository.CommissionEventRepository;
 import com.exe101.commission.repository.CommissionQuoteRepository;
@@ -86,6 +87,8 @@ class CommissionDeliveryServiceTest {
     private CommissionQuoteRepository quoteRepository;
     @Mock
     private ProceedsService proceedsService;
+    @Mock
+    private CancellationRequestRepository cancellationRepository;
     @Spy
     private CommissionEntityMapper commissionMapper = Mappers.getMapper(CommissionEntityMapper.class);
     @Spy
@@ -181,6 +184,27 @@ class CommissionDeliveryServiceTest {
     void submit_while_under_review_ko() {
         // given
         givenCommission("SUBMITTED_FOR_REVIEW");
+
+        // when / then
+        assertRejected(() -> service.submit(artistUserId, commissionId, submission(null, upload("cat.png"))),
+            AppErrorMessage.COMMISSION_ACTION_NOT_ALLOWED);
+    }
+
+    @Test
+    void pending_cancellation_blocks_submission_ko() {
+        // given
+        givenCommission("IN_PROGRESS");
+        when(cancellationRepository.existsByCommissionIdAndStatus(commissionId, "PENDING")).thenReturn(true);
+
+        // when / then
+        assertRejected(() -> service.submit(artistUserId, commissionId, submission(null, upload("cat.png"))),
+            AppErrorMessage.CANCELLATION_PENDING);
+    }
+
+    @Test
+    void disputed_commission_refuses_submission_ko() {
+        // given
+        givenCommission("DISPUTED");
 
         // when / then
         assertRejected(() -> service.submit(artistUserId, commissionId, submission(null, upload("cat.png"))),
@@ -302,6 +326,19 @@ class CommissionDeliveryServiceTest {
         // when / then
         assertRejected(() -> service.approve(customerId, commissionId, deliverableId),
             AppErrorMessage.DELIVERABLE_NOT_CURRENT);
+    }
+
+    @Test
+    void pending_cancellation_blocks_approval_ko() {
+        // given
+        givenCommission("SUBMITTED_FOR_REVIEW");
+        givenDeliverable(1, 1);
+        when(cancellationRepository.existsByCommissionIdAndStatus(commissionId, "PENDING")).thenReturn(true);
+
+        // when / then
+        assertRejected(() -> service.approve(customerId, commissionId, deliverableId),
+            AppErrorMessage.CANCELLATION_PENDING);
+        verify(proceedsService, never()).releaseQuote(anyLong(), any());
     }
 
     @Test

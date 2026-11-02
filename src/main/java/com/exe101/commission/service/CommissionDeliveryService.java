@@ -10,6 +10,8 @@ import java.util.List;
 public interface CommissionDeliveryService {
     List<CommissionDeliverable> list(Long userId, Long commissionId);
 
+    List<CommissionDeliverable> listForStaff(Long commissionId);
+
     CommissionDeliverable submit(Long userId, Long commissionId, DeliverableSubmission submission);
 
     Commission approve(Long userId, Long commissionId, Long deliverableId);
