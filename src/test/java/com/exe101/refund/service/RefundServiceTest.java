@@ -2,6 +2,7 @@ package com.exe101.refund.service;
 
 import com.exe101.audit.model.AuditEntry;
 import com.exe101.audit.service.AuditService;
+import com.exe101.commission.service.CommissionPaymentService;
 import com.exe101.common.error.AppErrorMessage;
 import com.exe101.common.error.AppException;
 import com.exe101.entitlement.service.EntitlementService;
@@ -96,16 +97,17 @@ class RefundServiceTest {
     private LedgerService ledgerService;
     @Mock
     private AuditService auditService;
+    @Mock
+    private CommissionPaymentService commissionPaymentService;
     private RefundServiceImpl service;
     private List<RefundRequest> savedRequests;
     private List<RefundTransfer> savedTransfers;
     private List<ShippingRefund> savedShipping;
-
     @BeforeEach
     void setUp() {
         service = new RefundServiceImpl(repository, transferRepository, shippingRepository,
             new RefundEntityMapperImpl(), orderService, fulfillmentService, proceedsService, entitlementService,
-            ledgerService, auditService);
+            ledgerService, auditService, commissionPaymentService);
         savedRequests = new ArrayList<>();
         savedTransfers = new ArrayList<>();
         savedShipping = new ArrayList<>();

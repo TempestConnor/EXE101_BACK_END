@@ -44,6 +44,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -79,6 +81,8 @@ class CommissionDisputeServiceTest {
     private ArtistService artistService;
     @Mock
     private AuditService auditService;
+    @Mock
+    private CommissionRefundService refundService;
     private CommissionDisputeServiceImpl service;
 
     @BeforeEach
@@ -89,7 +93,7 @@ class CommissionDisputeServiceTest {
             messageRepository, quoteRepository, eventRepository, Mappers.getMapper(CommissionEntityMapper.class),
             Mappers.getMapper(CommissionQuoteEntityMapper.class),
             Mappers.getMapper(CommissionCancellationEntityMapper.class), deliveryService, artistService, auditService,
-            cancellations);
+            cancellations, refundService);
         when(artistService.get(artistId)).thenReturn(artist());
         when(disputeRepository.saveAndFlush(any())).thenAnswer(invocation -> {
             CommissionDispute dispute = invocation.getArgument(0);
@@ -280,8 +284,10 @@ class CommissionDisputeServiceTest {
             () -> assertThat(audit.getValue().getDetails())
                 .isEqualTo("commissionId=3;outcome=CANCEL_REFUND;from=DISPUTED;to=CANCELLED")
         );
-        // The paid installment stays HELD: no refund, release or ledger write happens here (F20).
+        // The paid installment stays HELD while the Commission's refund is opened for it (F20).
         verify(paymentRepository, never()).saveAndFlush(first);
+        verify(refundService).openOnCancellation(eq(commissionId), isNull(), eq(staffId), eq("Artist left"), any());
+        verify(refundService, never()).releaseOnCancellation(anyLong(), any());
     }
 
     @Test
@@ -303,6 +309,9 @@ class CommissionDisputeServiceTest {
             () -> assertThat(audit.getValue().getReason()).isEqualTo("Customer abandoned the work")
         );
         verify(paymentRepository, never()).saveAndFlush(any());
+        // No refund: the held installment goes to the Artist (F20).
+        verify(refundService).releaseOnCancellation(eq(commissionId), any());
+        verify(refundService, never()).openOnCancellation(anyLong(), any(), any(), any(), any());
     }
 
     @Test

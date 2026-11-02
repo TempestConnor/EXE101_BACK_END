@@ -6,6 +6,7 @@ import com.exe101.proceeds.model.Proceeds;
 import com.exe101.proceeds.model.Release;
 import com.exe101.proceeds.model.ReleaseOutcome;
 import com.exe101.proceeds.model.ReleaseStatus;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -22,6 +23,10 @@ public interface ProceedsService {
     Optional<Proceeds> findLockedByOrderItem(Long orderItemId);
 
     Proceeds voidHeld(Long orderItemId);
+
+    List<Proceeds> findLockedByQuote(Long quoteId);
+
+    Proceeds refundQuoteShare(Long proceedsId, BigDecimal refunded, OffsetDateTime refundedAt);
 
     Release release(Long staffId, Long proceedsId);
 

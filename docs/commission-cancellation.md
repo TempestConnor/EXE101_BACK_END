@@ -9,8 +9,9 @@ cancellation are F20. It follows the payment rules of [Commission Quote payments
 ## Approved policies
 
 - **No money moves (B1):** every cancellation, agreed or forced by a dispute, leaves each paid installment's proceeds
-  `HELD`. Nothing is refunded, released or posted to the ledger. F20 decides the refund and releases the rest. See
-  [Known limits](#known-limits) for the weakness.
+  `HELD`. Nothing is refunded, released or posted to the ledger. *Changed by F20:* accepting a request or
+  `CANCEL_REFUND` opens the Commission's refund, and `CANCEL_NO_REFUND` releases the held share to the Artist
+  ([Commission refunds](commission-refunds.md)).
 - **Disputes use the `DISPUTED` status (B2):** opening a dispute moves the Commission to `DISPUTED`, and the
   `DISPUTE_OPENED` event keeps the status it interrupted. While `DISPUTED`, every formal participant action (Quote
   answers, submissions, approval, revision requests, cancellation requests) and every new payment attempt is refused.
@@ -38,7 +39,8 @@ cancellation are F20. It follows the payment rules of [Commission Quote payments
 - **Admin review (R5, §26.3–7, §29):** staff Admin only. `OPEN → UNDER_REVIEW`, then `RESOLVED` with an outcome and a
   reason of 1–2000 characters (the length of `AdminAudit.Reason`). Each step writes an `AdminAudit` row and a
   `CommissionEvent` with the staff actor in the same transaction. `CONTINUE` restores the interrupted status;
-  `CANCEL_REFUND` and `CANCEL_NO_REFUND` both cancel the Commission and differ only in the recorded outcome until F20.
+  `CANCEL_REFUND` and `CANCEL_NO_REFUND` both cancel the Commission; since F20 the first opens its refund and the
+  second releases the held share.
   The reason is returned as `resolutionReason` from the resolving event.
 - **Evidence (R6, §26.9):** participants list their Commission's cancellation requests and disputes. The Admin lists
   disputes, optionally by status, and reads one dispute with its Commission, messages, Quotes, versions (metadata and
@@ -95,19 +97,15 @@ F19 records no money event, but it changes when Quote payments apply:
 
 ## Deferred
 
-- **Commission refunds (F20):** the refund request after cancellation, the Admin's check of the agreed amount, the
-  refund transfers, and releasing whatever is not refunded. A `CANCEL_REFUND` outcome does not create a refund yet.
+- **Commission refunds:** done in F20, [Commission refunds](commission-refunds.md).
 - **Change Quotes** (§21): cancellation while a change Quote awaits payment.
 - **Admin download of Commission files** as evidence: the Admin sees file names and sizes only.
 - **The license contract** (amendment §D.17).
 
 ## Known limits
 
-- **A cancelled paid Commission holds its money indefinitely until F20 exists.** The Artist is not paid for the work
-  done and the Customer is not refunded; the held installment shows as `HELD` in the ledger and in the proceeds.
-  Closing it: F20's refund decision, which releases what is not refunded.
-- **`CANCEL_REFUND` and `CANCEL_NO_REFUND` have the same effect today.** Only the recorded outcome differs. Closing
-  it: F20 acting on the outcome.
+- **Closed by F20:** a cancelled paid Commission's held money is now settled by its refund, and the two cancelling
+  outcomes differ ([Commission refunds](commission-refunds.md)). A refund that nobody acts on still holds the money.
 - **Money behind a payment exception is refunded by hand and not recorded**, as in F17b: a success on a cancelled or
   `DISPUTED` Commission sits in `UNAPPLIED`. After `CONTINUE` the Customer may pay the same installment again, so the
   money is held twice until the exception is refunded. Closing it: recorded refunds of exception payments.

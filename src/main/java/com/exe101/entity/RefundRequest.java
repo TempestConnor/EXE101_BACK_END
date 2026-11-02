@@ -30,6 +30,7 @@ public class RefundRequest  implements java.io.Serializable {
      private OffsetDateTime decidedAt;
      private Long decidedByStaffId;
      private String decisionReason;
+     private Integer refundPercent;
 
     public RefundRequest() {
     }
@@ -157,6 +158,16 @@ public class RefundRequest  implements java.io.Serializable {
     
     public void setDecisionReason(String decisionReason) {
         this.decisionReason = decisionReason;
+    }
+
+    
+    @Column(name="RefundPercent", columnDefinition="tinyint")
+    public Integer getRefundPercent() {
+        return this.refundPercent;
+    }
+    
+    public void setRefundPercent(Integer refundPercent) {
+        this.refundPercent = refundPercent;
     }
 
 

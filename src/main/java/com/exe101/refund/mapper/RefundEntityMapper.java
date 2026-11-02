@@ -13,13 +13,12 @@ import org.mapstruct.ReportingPolicy;
 
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.ERROR)
 public interface RefundEntityMapper {
-    // Order Item requests only; Commission refunds come with Commissions.
     @Mapping(target = "refundRequestId", ignore = true)
-    @Mapping(target = "commissionId", ignore = true)
     RefundRequest toEntity(Refund refund);
 
     @Mapping(source = "refundRequestId", target = "withRefundRequestId")
     @Mapping(source = "orderItemId", target = "withOrderItemId")
+    @Mapping(source = "commissionId", target = "withCommissionId")
     @Mapping(source = "requestedByUserId", target = "withRequestedByUserId")
     @Mapping(source = "reason", target = "withReason")
     @Mapping(source = "status", target = "withStatus")
@@ -27,6 +26,7 @@ public interface RefundEntityMapper {
     @Mapping(source = "decidedAt", target = "withDecidedAt")
     @Mapping(source = "decidedByStaffId", target = "withDecidedByStaffId")
     @Mapping(source = "decisionReason", target = "withDecisionReason")
+    @Mapping(source = "refundPercent", target = "withRefundPercent")
     @Mapping(target = "withShippingAmount", ignore = true)
     @Mapping(target = "withTransfer", ignore = true)
     Refund toModel(RefundRequest entity);

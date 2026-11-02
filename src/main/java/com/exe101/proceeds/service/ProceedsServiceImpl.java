@@ -26,6 +26,7 @@ import com.exe101.proceeds.model.ReleaseStatus;
 import com.exe101.proceeds.repository.ProceedsRepository;
 import com.exe101.proceeds.repository.ReleaseLineRepository;
 import com.exe101.proceeds.repository.ReleaseRepository;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -152,6 +153,45 @@ public class ProceedsServiceImpl implements ProceedsService {
             voided.getProceedsId());
 
         return voided;
+    }
+
+    // For a Commission refund, which holds the Commission lock.
+    @Override
+    public List<Proceeds> findLockedByQuote(Long quoteId) {
+        return repository.findWithLockByQuoteIdOrderByInstallmentAsc(quoteId).stream()
+            .map(mapper::toModel)
+            .toList();
+    }
+
+    // F20: a cancelled Commission's refund takes its share of the held installment; the rest is released to the
+    // Artist at once, as at completion (approved 2 November 2026). The proceeds Amount is reduced to the rest: the
+    // original stays in the Quote, the Payment and the ledger receipt. All of it refunded makes the proceeds VOID.
+    // The ledger reversal of the refunded share is part of the refund's own posting.
+    @Override
+    public Proceeds refundQuoteShare(Long proceedsId, BigDecimal refunded, OffsetDateTime refundedAt) {
+        ArtistProceeds entity = repository.findWithLockByProceedsId(proceedsId)
+            .filter(found -> found.getQuoteId() != null && ProceedsStatus.HELD.name().equals(found.getStatus()))
+            .orElseThrow(() -> new IllegalStateException("No held Quote proceeds to refund: " + proceedsId));
+        BigDecimal amount = entity.getAmount();
+
+        if (refunded.signum() < 0 || refunded.compareTo(amount) > 0) {
+            throw new IllegalStateException("Refund outside the held proceeds: " + proceedsId);
+        }
+
+        if (refunded.signum() > 0 && refunded.compareTo(amount) == 0) {
+            entity.setStatus(ProceedsStatus.VOID.name());
+            Proceeds voided = mapper.toModel(repository.saveAndFlush(entity));
+            log.info("[PROCEEDS] - ACTION: refundQuoteShare: proceedsId: {}: voided", proceedsId);
+
+            return voided;
+        }
+
+        entity.setAmount(amount.subtract(refunded));
+        Proceeds released = mapper.toModel(reachMilestone(entity, refundedAt));
+        log.info("[PROCEEDS] - ACTION: refundQuoteShare: proceedsId: {}: refunded: {}: released: {}", proceedsId,
+            refunded, released.getAmount());
+
+        return released;
     }
 
     // A failed release leaves its proceeds ELIGIBLE; the Admin starts a new one for them, but only while the ledger

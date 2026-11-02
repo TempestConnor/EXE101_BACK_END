@@ -2,6 +2,7 @@ package com.exe101.refund.service;
 
 import com.exe101.audit.model.AuditEntry;
 import com.exe101.audit.service.AuditService;
+import com.exe101.commission.service.CommissionPaymentService;
 import com.exe101.common.error.AppErrorMessage;
 import com.exe101.common.error.AppException;
 import com.exe101.common.persistence.DatabaseErrors;
@@ -25,6 +26,7 @@ import com.exe101.proceeds.model.Proceeds;
 import com.exe101.proceeds.model.ProceedsStatus;
 import com.exe101.proceeds.service.ProceedsService;
 import com.exe101.refund.mapper.RefundEntityMapper;
+import com.exe101.refund.model.CommissionRefundSettlement;
 import com.exe101.refund.model.Refund;
 import com.exe101.refund.model.RefundDecision;
 import com.exe101.refund.model.RefundStatus;
@@ -73,6 +75,7 @@ public class RefundServiceImpl implements RefundService {
     private static String rejectedAction = "REFUND_REJECTED";
     private static String transferAction = "REFUND_TRANSFER_STATUS_CHANGED";
     private static String requestTarget = "REFUND_REQUEST";
+    private static String currency = "VND";
     private static String transferTarget = "REFUND_TRANSFER";
     private final RefundRequestRepository repository;
     private final RefundTransferRepository transferRepository;
@@ -84,6 +87,7 @@ public class RefundServiceImpl implements RefundService {
     private final EntitlementService entitlementService;
     private final LedgerService ledgerService;
     private final AuditService auditService;
+    private final CommissionPaymentService commissionPaymentService;
 
     // §16.1, amendment §C.9: the buyer asks for a whole physical item back, before delivery or within the return
     // window after it. The Order is locked first, as the window close locks it, so a request and the grant at the
@@ -205,9 +209,13 @@ public class RefundServiceImpl implements RefundService {
         RefundTransfer saved = saveTransfer(transfer);
 
         if (target == TransferStatus.SUCCEEDED) {
+            // A Commission refund names the Quote its installment paid, as its approval did.
+            Long quoteId = request.getCommissionId() == null ? null
+                : commissionPaymentService.findQuoteId(saved.getPaymentId()).orElseThrow();
             ledgerService.recordRefundPaid(RefundMovement.builder()
                 .withSourceId(transferId)
                 .withOrderItemId(request.getOrderItemId())
+                .withQuoteId(quoteId)
                 .withAmount(saved.getAmount())
                 .withOccurredAt(changedAt)
                 .build());
@@ -220,6 +228,127 @@ public class RefundServiceImpl implements RefundService {
             transferId, target);
 
         return refunds(List.of(request)).getFirst();
+    }
+
+    // F20: a paid Commission's refund is opened when it is cancelled, for its Customer, without being asked for
+    // (approved 2 November 2026). The caller holds the Commission lock; UX_Refund_OpenCommission allows one open or
+    // completed refund per Commission.
+    @Override
+    public Refund openForCommission(Long commissionId, Long customerId, String reason, OffsetDateTime openedAt) {
+        Refund refund = Refund.builder()
+            .withCommissionId(commissionId)
+            .withRequestedByUserId(customerId)
+            .withReason(reason)
+            .withStatus(RefundStatus.REQUESTED)
+            .withRequestedAt(openedAt)
+            .build();
+        RefundRequest saved = saveRequest(mapper.toEntity(refund));
+        log.info("[REFUND] - ACTION: openForCommission: commissionId: {}: refundRequestId: {}", commissionId,
+            saved.getRefundRequestId());
+
+        return mapper.toModel(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Refund> listForCommission(Long commissionId) {
+        return refunds(repository.findByCommissionIdOrderByRefundRequestIdAsc(commissionId));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Refund> listCommissionRefunds(RefundStatus status) {
+        List<RefundRequest> entities = status == null
+            ? repository.findByCommissionIdIsNotNullOrderByRequestedAtDescRefundRequestIdDesc()
+            : repository.findByCommissionIdIsNotNullAndStatusOrderByRequestedAtDescRefundRequestIdDesc(status.name());
+
+        return refunds(entities);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Long> findCommissionId(Long refundRequestId) {
+        return repository.findCommissionIdByRefundRequestId(refundRequestId);
+    }
+
+    // Taken after the Commission lock; a request of another Commission does not exist here.
+    @Override
+    public Refund findLockedForCommission(Long commissionId, Long refundRequestId) {
+        RefundRequest entity = repository.findWithLockByRefundRequestId(refundRequestId)
+            .filter(found -> commissionId.equals(found.getCommissionId()))
+            .orElseThrow(() -> new AppException(AppErrorMessage.REFUND_REQUEST_NOT_FOUND));
+
+        return refunds(List.of(entity)).getFirst();
+    }
+
+    @Override
+    public Refund recordPercent(Long refundRequestId, Integer percent) {
+        RefundRequest entity = repository.findWithLockByRefundRequestId(refundRequestId).orElseThrow();
+        entity.setRefundPercent(percent);
+
+        return mapper.toModel(repository.saveAndFlush(entity));
+    }
+
+    // The Commission feature has checked, under its lock, that the share is still held. A refund of 0 closes the
+    // request as REJECTED with no transfer, because a transfer must be above 0. Otherwise the request is APPROVED, the
+    // Customer is owed the sum in REFUND_PAYABLE, and the Admin sends it by hand as for Order Items. The refunds of
+    // one payment can never add up to more than it.
+    @Override
+    public Refund settleCommission(CommissionRefundSettlement settlement) {
+        Long refundRequestId = settlement.getRefundRequestId();
+        RefundRequest entity = repository.findWithLockByRefundRequestId(refundRequestId).orElseThrow();
+
+        if (!RefundStatus.REQUESTED.name().equals(entity.getStatus())) {
+            throw new AppException(AppErrorMessage.REFUND_ALREADY_DECIDED);
+        }
+
+        OffsetDateTime decidedAt = settlement.getDecidedAt();
+        BigDecimal amount = settlement.getShare().add(settlement.getTax());
+        entity.setRefundPercent(settlement.getPercent());
+        entity.setDecidedAt(decidedAt);
+        entity.setDecidedByStaffId(settlement.getDecidedByStaffId());
+        entity.setDecisionReason(settlement.getDecisionReason());
+
+        if (amount.signum() == 0) {
+            entity.setStatus(RefundStatus.REJECTED.name());
+            repository.saveAndFlush(entity);
+            log.info("[REFUND] - ACTION: settleCommission: refundRequestId: {}: nothing refunded", refundRequestId);
+
+            return refunds(List.of(entity)).getFirst();
+        }
+
+        entity.setStatus(RefundStatus.APPROVED.name());
+        repository.saveAndFlush(entity);
+        Long paymentId = settlement.getPaymentId();
+        BigDecimal refunded = transferRepository.sumAmountByPaymentId(paymentId);
+
+        if (refunded.add(amount).compareTo(settlement.getPaymentAmount()) > 0) {
+            throw new IllegalStateException("Refunds would exceed the payment: " + paymentId);
+        }
+
+        Transfer transfer = Transfer.builder()
+            .withRefundRequestId(refundRequestId)
+            .withPaymentId(paymentId)
+            .withAmount(amount)
+            .withCurrencyCode(currency)
+            .withStatus(TransferStatus.PENDING)
+            .withCreatedAt(decidedAt)
+            .build();
+        transferRepository.saveAndFlush(mapper.toEntity(transfer));
+        ledgerService.recordRefundApproved(RefundMovement.builder()
+            .withSourceId(refundRequestId)
+            .withArtistId(settlement.getArtistId())
+            .withQuoteId(settlement.getQuoteId())
+            .withProceeds(settlement.getShare())
+            .withManufacturing(BigDecimal.ZERO)
+            .withTax(settlement.getTax())
+            .withShipping(BigDecimal.ZERO)
+            .withAmount(amount)
+            .withOccurredAt(decidedAt)
+            .build());
+        log.info("[REFUND] - ACTION: settleCommission: refundRequestId: {}: amount: {}", refundRequestId, amount);
+
+        return refunds(List.of(entity)).getFirst();
     }
 
     // Everything is checked again under the Order, item and proceeds locks, in the order the window close takes

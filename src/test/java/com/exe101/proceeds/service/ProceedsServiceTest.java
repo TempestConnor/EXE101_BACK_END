@@ -435,6 +435,51 @@ class ProceedsServiceTest {
     }
 
     @Test
+    void refund_quote_reduces_and_releases_rest_ok() {
+        // given
+        // 70% of a held share of 50 001 is refunded; the rest, 15 000, goes to the Artist at once (F20).
+        var first = quoteProceeds(1, "HELD", "50001.0000");
+        when(repository.findWithLockByProceedsId(first.getProceedsId())).thenReturn(Optional.of(first));
+        var refundedAt = now();
+
+        // when
+        var result = service.refundQuoteShare(first.getProceedsId(), new BigDecimal("35001.0000"), refundedAt);
+        var releasedMove = ArgumentCaptor.forClass(ArtistMovement.class);
+        verify(ledgerService).recordProceedsReleased(releasedMove.capture());
+
+        // then
+        assertAll(
+            () -> assertThat(result.getStatus()).isEqualTo(ProceedsStatus.RESERVED),
+            () -> assertThat(first.getAmount()).isEqualByComparingTo("15000"),
+            () -> assertThat(first.getEligibleAt()).isEqualTo(refundedAt),
+            () -> assertThat(savedReleases).singleElement().satisfies(release -> assertAll(
+                () -> assertThat(release.getAmount()).isEqualByComparingTo("15000"),
+                () -> assertThat(release.getStatus()).isEqualTo("PENDING"))),
+            () -> assertThat(savedLines).extracting(PayoutLine::getProceedsId).containsExactly(first.getProceedsId()),
+            () -> assertThat(releasedMove.getValue().getAmount()).isEqualByComparingTo("15000"),
+            () -> assertThat(releasedMove.getValue().getQuoteId()).isEqualTo(quoteId)
+        );
+    }
+
+    @Test
+    void refund_quote_full_voids_ok() {
+        // given
+        var first = quoteProceeds(1, "HELD", "50001.0000");
+        when(repository.findWithLockByProceedsId(first.getProceedsId())).thenReturn(Optional.of(first));
+
+        // when
+        var result = service.refundQuoteShare(first.getProceedsId(), new BigDecimal("50001.0000"), now());
+
+        // then
+        assertAll(
+            () -> assertThat(result.getStatus()).isEqualTo(ProceedsStatus.VOID),
+            () -> assertThat(first.getAmount()).isEqualByComparingTo("50001"),
+            () -> assertThat(savedReleases).isEmpty()
+        );
+        verifyNoInteractions(ledgerService);
+    }
+
+    @Test
     void record_release_paid_quote_ok() {
         // given
         lockedRelease("PROCESSING");

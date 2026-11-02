@@ -8,8 +8,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-// Money returned to the buyer for one item, caused by a refund request (approval) or its transfer (payment). The
-// parts are what the item still owed when it was refunded; the amount is what the buyer gets back.
+// Money returned to the buyer for one item or one Commission's Quote, caused by a refund request (approval) or its
+// transfer (payment). The parts are what the item or Quote still owed when it was refunded; the amount is what the
+// buyer gets back.
 @Getter
 @Setter
 @NoArgsConstructor
@@ -19,6 +20,7 @@ public class RefundMovement {
     private Long sourceId;
     private Long artistId;
     private Long orderItemId;
+    private Long quoteId;
     private BigDecimal proceeds;
     private BigDecimal manufacturing;
     private BigDecimal tax;

@@ -15,9 +15,10 @@ import java.time.OffsetDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-// Cancelling ends the Commission and moves no money (§24.11–12): held installments stay HELD until a Commission
-// refund decides them (F20, approved 2 November 2026). A Payment still awaited becomes CANCELLED, but its provider
-// attempts stay open, so a success that lands later is recorded as an exception and booked to UNAPPLIED.
+// Cancelling ends the Commission and moves no money (§24.11–12): held installments stay HELD until the Commission's
+// refund decides them, or a CANCEL_NO_REFUND dispute outcome releases them (F20, approved 2 November 2026). A
+// Payment still awaited becomes CANCELLED, but its provider attempts stay open, so a success that lands later is
+// recorded as an exception and booked to UNAPPLIED.
 // Runs inside the caller's transaction, with the Commission row already locked.
 @Component
 @RequiredArgsConstructor

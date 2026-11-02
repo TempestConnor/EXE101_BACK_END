@@ -98,6 +98,12 @@ public class CommissionPaymentServiceImpl implements CommissionPaymentService {
         return paymentRepository.findQuoteIdByPaymentId(paymentId).isPresent();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Long> findQuoteId(Long paymentId) {
+        return paymentRepository.findQuoteIdByPaymentId(paymentId);
+    }
+
     // §12.6: only a confirmed success of the exact installment due changes the Commission. The first starts the work;
     // the final one marks the Quote PAID and completes the Commission (amendment §D.13), and the caller releases the
     // Quote's proceeds. Money that arrives when the installment can no longer be paid leaves the Commission as it is;

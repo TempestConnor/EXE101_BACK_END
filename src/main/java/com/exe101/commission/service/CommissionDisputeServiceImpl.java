@@ -36,7 +36,8 @@ import org.springframework.transaction.annotation.Transactional;
 // Either participant opens a dispute; the Commission becomes DISPUTED, which refuses every formal action and new
 // payment attempt until the Admin resolves it (approved 2 November 2026). The Admin takes it under review and resolves
 // it with an outcome and a reason, each audited in the same transaction (§26, §29). CONTINUE restores the status the
-// dispute interrupted; both cancelling outcomes cancel the Commission and leave its held installments HELD for F20.
+// dispute interrupted. Both cancelling outcomes cancel the Commission: CANCEL_REFUND opens its refund, and
+// CANCEL_NO_REFUND releases the held installments to the Artist (F20, approved 2 November 2026).
 // Every action locks the Commission row first, and UX_Dispute_Active backs the one-active-dispute rule (§31.8).
 @Slf4j
 @Service
@@ -63,6 +64,7 @@ public class CommissionDisputeServiceImpl implements CommissionDisputeService {
     private final ArtistService artistService;
     private final AuditService auditService;
     private final CommissionCancellations cancellations;
+    private final CommissionRefundService refundService;
 
     // A pending cancellation is answered or withdrawn first, so no request is left pending under a dispute.
     @Override
@@ -173,7 +175,7 @@ public class CommissionDisputeServiceImpl implements CommissionDisputeService {
         return toModel(saved);
     }
 
-    // A dispute is resolved once, from UNDER_REVIEW (§31.9). No outcome moves money in this increment.
+    // A dispute is resolved once, from UNDER_REVIEW (§31.9).
     @Override
     public CommissionDispute resolve(Long staffId, Long disputeId, DisputeResolution resolution) {
         DisputeOutcome outcome = resolution == null ? null : resolution.getOutcome();
@@ -207,6 +209,12 @@ public class CommissionDisputeServiceImpl implements CommissionDisputeService {
             changeStatus(commission, previous, resolvedEvent, disputeId, null, staffId, reason, resolvedAt);
         } else {
             cancellations.cancel(commission, resolvedEvent, disputeId, null, staffId, reason, resolvedAt);
+
+            if (outcome == DisputeOutcome.CANCEL_REFUND) {
+                refundService.openOnCancellation(commissionId, null, staffId, reason, resolvedAt);
+            } else {
+                refundService.releaseOnCancellation(commissionId, resolvedAt);
+            }
         }
 
         auditService.record(AuditEntry.builder()

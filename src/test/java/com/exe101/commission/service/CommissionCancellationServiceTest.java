@@ -38,6 +38,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -65,6 +67,8 @@ class CommissionCancellationServiceTest {
     private CommissionEventRepository eventRepository;
     @Mock
     private ArtistService artistService;
+    @Mock
+    private CommissionRefundService refundService;
     private CommissionCancellationServiceImpl service;
 
     @BeforeEach
@@ -73,7 +77,7 @@ class CommissionCancellationServiceTest {
             eventRepository);
         service = new CommissionCancellationServiceImpl(repository, cancellationRepository, quoteRepository,
             paymentRepository, eventRepository, Mappers.getMapper(CommissionEntityMapper.class),
-            Mappers.getMapper(CommissionCancellationEntityMapper.class), artistService, cancellations);
+            Mappers.getMapper(CommissionCancellationEntityMapper.class), artistService, cancellations, refundService);
         when(artistService.get(artistId)).thenReturn(artist("ACTIVE"));
         when(cancellationRepository.saveAndFlush(any())).thenAnswer(invocation -> {
             CancellationRequest request = invocation.getArgument(0);
@@ -294,8 +298,10 @@ class CommissionCancellationServiceTest {
             () -> assertThat(event.getValue().getActorUserId()).isEqualTo(artistUserId),
             () -> assertThat(event.getValue().getDetails()).isEqualTo("Agreed")
         );
-        // No refund and no release: the paid installment stays HELD until F20 decides it.
+        // Cancelling moves no money itself; the Commission's refund is opened for the held installment (F20).
         verify(paymentRepository, never()).saveAndFlush(any());
+        verify(refundService).openOnCancellation(eq(commissionId), eq(artistUserId), isNull(),
+            eq("The deadline no longer works"), any());
     }
 
     @Test

@@ -31,8 +31,9 @@ import org.springframework.transaction.annotation.Transactional;
 // Before the first payment either participant cancels at once, and no refund arises (amendment §D.12). After it,
 // cancellation is a formal request the other participant accepts or rejects and the requester may withdraw (§24).
 // Every action locks the Commission row (UPDLOCK) first, so a racing accept and withdraw, or an accept and the final
-// payment, have exactly one winner (§31.9). No money moves: held installments stay HELD for F20 (approved
-// 2 November 2026). A deactivated Artist keeps every action (amendment §A.4).
+// payment, have exactly one winner (§31.9). Cancelling moves no money; accepting a request opens the Commission's
+// refund, which decides the held installment (F20, approved 2 November 2026). A deactivated Artist keeps every action
+// (amendment §A.4).
 @Slf4j
 @Service
 @Transactional
@@ -51,6 +52,7 @@ public class CommissionCancellationServiceImpl implements CommissionCancellation
     private final CommissionCancellationEntityMapper mapper;
     private final ArtistService artistService;
     private final CommissionCancellations cancellations;
+    private final CommissionRefundService refundService;
 
     // A Payment still awaited is cancelled with the Commission; a success landing afterwards is an exception.
     @Override
@@ -117,7 +119,8 @@ public class CommissionCancellationServiceImpl implements CommissionCancellation
         return mapper.toModel(saved);
     }
 
-    // Agreement cancels the Commission without a refund (§24.5, §24.12); the Customer may then request one (F20).
+    // Agreement cancels the Commission without refunding anything itself (§24.5, §24.12); its refund is opened at
+    // once, without the Customer asking (F20).
     @Override
     public CancellationRequest accept(Long userId, Long commissionId, Long cancellationId, String note) {
         String text = optionalText(note);
@@ -131,6 +134,7 @@ public class CommissionCancellationServiceImpl implements CommissionCancellation
         request.setResolvedAt(acceptedAt);
         com.exe101.entity.CancellationRequest saved = cancellationRepository.saveAndFlush(request);
         cancellations.cancel(commission, "CANCELLATION_ACCEPTED", cancellationId, userId, null, text, acceptedAt);
+        refundService.openOnCancellation(commissionId, userId, null, request.getReason(), acceptedAt);
         log.info("[COMMISSION] - ACTION: acceptCancellation: commissionId: {}: cancellationId: {}", commissionId,
             cancellationId);
 

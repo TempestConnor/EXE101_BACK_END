@@ -70,9 +70,9 @@ public interface ReconciliationRepository extends Repository<LedgerTransaction, 
         + " GROUP BY t.sourceId, p.amount HAVING SUM(e.amount) <> p.amount")
     List<Long> findReceiptsWithWrongAmount();
 
-    // An approved item refund stays approved through its transfer, until it is REFUNDED.
-    @Query("SELECT r.refundRequestId FROM RefundRequest r WHERE r.orderItemId IS NOT NULL"
-        + " AND r.status IN ('APPROVED', 'PROCESSING', 'REFUNDED') AND NOT EXISTS (SELECT 1 FROM LedgerTransaction t"
+    // An approved item or Commission refund stays approved through its transfer, until it is REFUNDED.
+    @Query("SELECT r.refundRequestId FROM RefundRequest r"
+        + " WHERE r.status IN ('APPROVED', 'PROCESSING', 'REFUNDED') AND NOT EXISTS (SELECT 1 FROM LedgerTransaction t"
         + " WHERE t.type = 'REFUND_APPROVED' AND t.sourceType = 'REFUND_REQUEST' AND t.sourceId = r.refundRequestId)")
     List<Long> findApprovedRefundsWithoutEntry();
 

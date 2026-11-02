@@ -141,19 +141,19 @@ public class LedgerServiceImpl implements LedgerService {
             LedgerAccount.ARTIST_AVAILABLE);
     }
 
-    // An approved refund takes back what the item still owed, and the shipping when it is the last physical item;
-    // the buyer is owed the sum until the transfer succeeds. A failed transfer writes nothing (approved 1 November
-    // 2026), so the money stays in REFUND_PAYABLE until a retry succeeds.
+    // An approved refund takes back what the item or the Quote still owed, and the shipping when it is the last
+    // physical item; the buyer is owed the sum until the transfer succeeds. A failed transfer writes nothing (approved
+    // 1 November 2026), so the money stays in REFUND_PAYABLE until a retry succeeds. A Commission refund names its
+    // Quote, and has no manufacturing cost or shipping.
     @Override
     public void recordRefundApproved(RefundMovement movement) {
-        Long orderItemId = movement.getOrderItemId();
         post(LedgerEventType.REFUND_APPROVED, LedgerSourceType.REFUND_REQUEST, movement.getSourceId(),
             movement.getOccurredAt(), List.of(
-                line(LedgerAccount.ARTIST_HELD, movement.getArtistId(), orderItemId, movement.getProceeds()),
-                line(LedgerAccount.MANUFACTURER_PAYABLE, null, orderItemId, movement.getManufacturing()),
-                line(LedgerAccount.TAX_PAYABLE, null, orderItemId, movement.getTax()),
+                refundLine(LedgerAccount.ARTIST_HELD, movement.getArtistId(), movement, movement.getProceeds()),
+                refundLine(LedgerAccount.MANUFACTURER_PAYABLE, null, movement, movement.getManufacturing()),
+                refundLine(LedgerAccount.TAX_PAYABLE, null, movement, movement.getTax()),
                 line(LedgerAccount.SHIPPING, null, null, movement.getShipping()),
-                line(LedgerAccount.REFUND_PAYABLE, null, orderItemId, movement.getAmount().negate())));
+                refundLine(LedgerAccount.REFUND_PAYABLE, null, movement, movement.getAmount().negate())));
     }
 
     @Override
@@ -161,7 +161,7 @@ public class LedgerServiceImpl implements LedgerService {
         BigDecimal amount = movement.getAmount();
         post(LedgerEventType.REFUND_PAID, LedgerSourceType.REFUND_TRANSFER, movement.getSourceId(),
             movement.getOccurredAt(), List.of(
-                line(LedgerAccount.REFUND_PAYABLE, null, movement.getOrderItemId(), amount),
+                refundLine(LedgerAccount.REFUND_PAYABLE, null, movement, amount),
                 line(LedgerAccount.CASH, null, null, amount.negate())));
     }
 
@@ -379,6 +379,17 @@ public class LedgerServiceImpl implements LedgerService {
         return LedgerLine.builder()
             .withAccount(account)
             .withArtistId(movement.getArtistId())
+            .withOrderItemId(movement.getOrderItemId())
+            .withQuoteId(movement.getQuoteId())
+            .withAmount(amount)
+            .build();
+    }
+
+    // A refund line names the Order Item or the Quote the refund is for.
+    private LedgerLine refundLine(LedgerAccount account, Long artistId, RefundMovement movement, BigDecimal amount) {
+        return LedgerLine.builder()
+            .withAccount(account)
+            .withArtistId(artistId)
             .withOrderItemId(movement.getOrderItemId())
             .withQuoteId(movement.getQuoteId())
             .withAmount(amount)

@@ -60,10 +60,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
-// Cancellation and disputes (F19) move no money: paid installments stay HELD for Commission refunds (F20), and a
-// payment landing on a cancelled Commission is an exception booked to UNAPPLIED. Quote payments commit, and Quotes,
-// versions and cancellation history can never be deleted, so this runs only against the disposable test database
-// selected by TEST_DB_URL and leaves its rows there. Every payment goes through the IPN, so the database stays
+// Cancellation and disputes (F19) move no money: paid installments stay HELD while the Commission's refund (F20) is
+// open, and a payment landing on a cancelled Commission is an exception booked to UNAPPLIED. Quote payments commit,
+// and Quotes, versions and cancellation history can never be deleted, so this runs only against the disposable test
+// database selected by TEST_DB_URL and leaves its rows there. Every payment goes through the IPN, so the database stays
 // reconcilable. At a 10% tax rate a price of 100 001 has a tax of 10 000: the first payment is 50 001 + 5 000 =
 // 55 001 and the final one 50 000 + 5 000 = 55 000. The scheduled jobs are slowed down so they do not run.
 @SpringBootTest(properties = {"app.orders.expiry-interval=PT1H", "app.fulfillment.grant-interval=PT1H",
@@ -212,8 +212,9 @@ class CommissionCancellationPersistenceTest {
             () -> assertThat(cancellationStatus(request.getCancellationId())).isEqualTo("ACCEPTED"),
             () -> assertThat(proceedsStatuses(paid.quoteId())).containsExactly("HELD"),
             () -> assertThat(releaseCount(paid.quoteId())).isZero(),
-            () -> assertThat(count("SELECT COUNT(*) FROM dbo.RefundRequest WHERE CommissionId = ?",
-                paid.commissionId())).isZero(),
+            // F20 opens the refund; the money stays HELD until it is decided.
+            () -> assertThat(count("SELECT COUNT(*) FROM dbo.RefundRequest WHERE CommissionId = ? "
+                + "AND Status = 'REQUESTED'", paid.commissionId())).isEqualTo(1),
             () -> assertThat(artistBalance(paid.quoteId(), "ARTIST_HELD")).isEqualByComparingTo("-50001"),
             () -> assertThat(paymentStatus(paid.quoteId(), 1)).isEqualTo("SUCCEEDED"),
             () -> assertThat(reconciliation.getMismatches()).isEmpty()
@@ -272,7 +273,7 @@ class CommissionCancellationPersistenceTest {
             () -> assertThat(stored.get("ResolvedAt")).isNotNull(),
             () -> assertThat(commissionStatus(paid.commissionId())).isEqualTo("CANCELLED"),
             () -> assertThat(events(paid.commissionId()))
-                .endsWith("DISPUTE_OPENED", "DISPUTE_UNDER_REVIEW", "DISPUTE_RESOLVED"),
+                .endsWith("DISPUTE_OPENED", "DISPUTE_UNDER_REVIEW", "DISPUTE_RESOLVED", "REFUND_OPENED"),
             () -> assertThat(audits).extracting(row -> row.get("ActionType"))
                 .containsExactly("COMMISSION_DISPUTE_REVIEW_STARTED", "COMMISSION_DISPUTE_RESOLVED"),
             () -> assertThat(audits).extracting(row -> ((Number) row.get("StaffId")).longValue()).containsOnly(adminId),

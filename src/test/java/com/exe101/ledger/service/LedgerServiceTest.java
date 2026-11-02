@@ -9,6 +9,7 @@ import com.exe101.ledger.model.ArtistMovement;
 import com.exe101.ledger.model.LedgerAccount;
 import com.exe101.ledger.model.Mismatch;
 import com.exe101.ledger.model.MismatchCheck;
+import com.exe101.ledger.model.RefundMovement;
 import com.exe101.ledger.repository.AccountTotal;
 import com.exe101.ledger.repository.ItemBalance;
 import com.exe101.ledger.repository.LedgerEntryRepository;
@@ -324,6 +325,65 @@ class LedgerServiceTest {
             () -> assertThatThrownBy(() -> service.requireReconciled())
                 .isInstanceOfSatisfying(AppException.class, exception ->
                     assertThat(exception.getError()).isEqualTo(AppErrorMessage.RECONCILIATION_MISMATCH))
+        );
+    }
+
+    @Test
+    void commission_refund_approved_posts_quote_lines_ok() {
+        // given
+        // 70% of a held share of 50 001 and a tax half of 5 001, each rounded half-up.
+        var movement = RefundMovement.builder()
+            .withSourceId(700L)
+            .withArtistId(digitalArtistId)
+            .withQuoteId(21L)
+            .withProceeds(new BigDecimal("35001"))
+            .withManufacturing(BigDecimal.ZERO)
+            .withTax(new BigDecimal("3501"))
+            .withShipping(BigDecimal.ZERO)
+            .withAmount(new BigDecimal("38502"))
+            .withOccurredAt(now())
+            .build();
+
+        // when
+        service.recordRefundApproved(movement);
+
+        // then
+        var transaction = savedTransactions.getFirst();
+        assertAll(
+            () -> assertThat(transaction.getType()).isEqualTo("REFUND_APPROVED"),
+            () -> assertThat(transaction.getSourceType()).isEqualTo("REFUND_REQUEST"),
+            () -> assertThat(transaction.getSourceId()).isEqualTo(700L),
+            () -> assertThat(total(savedEntries)).isEqualByComparingTo("0"),
+            () -> assertThat(savedEntries).hasSize(3),
+            () -> assertThat(savedEntries).extracting(LedgerEntry::getQuoteId).containsOnly(21L),
+            () -> assertThat(savedEntries).extracting(LedgerEntry::getOrderItemId).containsOnlyNulls(),
+            () -> assertThat(savedEntries).filteredOn(entry -> entry.getAccount().equals("ARTIST_HELD"))
+                .singleElement()
+                .satisfies(entry -> assertAll(
+                    () -> assertThat(entry.getAmount()).isEqualByComparingTo("35001"),
+                    () -> assertThat(entry.getArtistId()).isEqualTo(digitalArtistId))),
+            () -> assertThat(savedEntries).filteredOn(entry -> entry.getAccount().equals("TAX_PAYABLE"))
+                .extracting(LedgerEntry::getAmount).singleElement().satisfies(amount ->
+                    assertThat(amount).isEqualByComparingTo("3501")),
+            () -> assertThat(savedEntries).filteredOn(entry -> entry.getAccount().equals("REFUND_PAYABLE"))
+                .extracting(LedgerEntry::getAmount).singleElement().satisfies(amount ->
+                    assertThat(amount).isEqualByComparingTo("-38502"))
+        );
+    }
+
+    @Test
+    void commission_refund_without_entry_is_mismatch_ok() {
+        // given
+        when(reconciliationRepository.findApprovedRefundsWithoutEntry()).thenReturn(List.of(700L));
+
+        // when
+        var reconciliation = service.reconcile();
+
+        // then
+        assertAll(
+            () -> assertThat(reconciliation.isClean()).isFalse(),
+            () -> assertThat(reconciliation.getMismatches()).singleElement()
+                .satisfies(mismatch -> assertMismatch(mismatch, MismatchCheck.MISSING_ENTRY, "RefundRequest", 700L))
         );
     }
 
