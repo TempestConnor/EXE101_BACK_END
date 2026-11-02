@@ -1,7 +1,9 @@
 package com.exe101.commission.service;
 
 import com.exe101.artist.model.Artist;
+import com.exe101.artist.model.ArtistTerms;
 import com.exe101.artist.service.ArtistService;
+import com.exe101.artist.service.ArtistTermsService;
 import com.exe101.cart.config.CheckoutProperties;
 import com.exe101.commission.mapper.CommissionEntityMapper;
 import com.exe101.commission.mapper.CommissionQuoteEntityMapper;
@@ -51,6 +53,7 @@ class CommissionQuoteServiceTest {
     private static long artistId = 9L;
     private static long commissionId = 3L;
     private static long quoteId = 21L;
+    private static long termsId = 61L;
     @Mock
     private CommissionRepository repository;
     @Mock
@@ -61,6 +64,8 @@ class CommissionQuoteServiceTest {
     private CancellationRequestRepository cancellationRepository;
     @Mock
     private ArtistService artistService;
+    @Mock
+    private ArtistTermsService termsService;
     @Spy
     private CommissionEntityMapper commissionMapper = Mappers.getMapper(CommissionEntityMapper.class);
     @Spy
@@ -72,6 +77,8 @@ class CommissionQuoteServiceTest {
         service = quoteService("0.10");
         when(artistService.get(artistId)).thenReturn(artist("ACTIVE"));
         when(artistService.lockForCommission(artistId)).thenReturn(artist("ACTIVE"));
+        when(termsService.hasTerms(artistId)).thenReturn(true);
+        when(termsService.lockCurrent(artistId)).thenReturn(artistTerms(termsId, 2));
         when(quoteRepository.saveAndFlush(any())).thenAnswer(invocation -> {
             CommissionQuote quote = invocation.getArgument(0);
 
@@ -278,7 +285,7 @@ class CommissionQuoteServiceTest {
         var quote = givenQuote("OFFERED");
 
         // when
-        var result = service.accept(customerId, commissionId, quoteId);
+        var result = service.accept(customerId, commissionId, quoteId, termsId);
         var event = ArgumentCaptor.forClass(CommissionEvent.class);
         verify(eventRepository).saveAndFlush(event.capture());
 
@@ -309,7 +316,7 @@ class CommissionQuoteServiceTest {
         givenQuote("OFFERED");
 
         // when / then
-        assertRejected(() -> service.accept(artistUserId, commissionId, quoteId), AppErrorMessage.ACCESS_DENIED);
+        assertRejected(() -> service.accept(artistUserId, commissionId, quoteId, termsId), AppErrorMessage.ACCESS_DENIED);
     }
 
     @Test
@@ -319,7 +326,7 @@ class CommissionQuoteServiceTest {
         givenQuote("WITHDRAWN");
 
         // when / then
-        assertRejected(() -> service.accept(customerId, commissionId, quoteId), AppErrorMessage.QUOTE_NOT_OFFERED);
+        assertRejected(() -> service.accept(customerId, commissionId, quoteId, termsId), AppErrorMessage.QUOTE_NOT_OFFERED);
     }
 
     @Test
@@ -330,7 +337,7 @@ class CommissionQuoteServiceTest {
         when(artistService.lockForCommission(artistId)).thenReturn(artist("SUSPENDED"));
 
         // when / then
-        assertRejected(() -> service.accept(customerId, commissionId, quoteId), AppErrorMessage.ARTIST_NOT_ACTIVE);
+        assertRejected(() -> service.accept(customerId, commissionId, quoteId, termsId), AppErrorMessage.ARTIST_NOT_ACTIVE);
     }
 
     @Test
@@ -340,7 +347,90 @@ class CommissionQuoteServiceTest {
         when(quoteRepository.findByQuoteIdAndCommissionId(quoteId, commissionId)).thenReturn(Optional.empty());
 
         // when / then
-        assertRejected(() -> service.accept(customerId, commissionId, quoteId), AppErrorMessage.QUOTE_NOT_FOUND);
+        assertRejected(() -> service.accept(customerId, commissionId, quoteId, termsId), AppErrorMessage.QUOTE_NOT_FOUND);
+    }
+
+    @Test
+    void offer_quote_without_terms_ko() {
+        // given
+        givenCommission("REQUESTED");
+        when(termsService.hasTerms(artistId)).thenReturn(false);
+
+        // when / then
+        assertRejected(() -> service.offer(artistUserId, commissionId, terms("100000", "Sketch", "1 week")),
+            AppErrorMessage.ARTIST_TERMS_REQUIRED);
+    }
+
+    @Test
+    void accept_quote_records_terms_version_ok() {
+        // given
+        givenCommission("QUOTED");
+        var quote = givenQuote("OFFERED");
+
+        // when
+        var result = service.accept(customerId, commissionId, quoteId, termsId);
+
+        // then
+        assertAll(
+            () -> assertThat(result.getArtistTermsId()).isEqualTo(termsId),
+            () -> assertThat(quote.getArtistTermsId()).isEqualTo(termsId),
+            () -> verify(termsService).lockCurrent(artistId)
+        );
+    }
+
+    @Test
+    void accept_quote_stale_terms_ko() {
+        // given
+        givenCommission("QUOTED");
+        var quote = givenQuote("OFFERED");
+        when(termsService.lockCurrent(artistId)).thenReturn(artistTerms(62L, 3));
+
+        // when / then
+        assertAll(
+            () -> assertRejected(() -> service.accept(customerId, commissionId, quoteId, termsId),
+                AppErrorMessage.ARTIST_TERMS_OUTDATED),
+            () -> assertThat(quote.getStatus()).isEqualTo("OFFERED"),
+            () -> assertThat(quote.getArtistTermsId()).isNull()
+        );
+    }
+
+    @Test
+    void get_accepted_terms_ok() {
+        // given
+        when(repository.findById(commissionId)).thenReturn(Optional.of(commission("AWAITING_PAYMENT")));
+        when(repository.existsById(commissionId)).thenReturn(true);
+        var quote = quote("ACCEPTED");
+        quote.setArtistTermsId(termsId);
+        when(quoteRepository.findByQuoteIdAndCommissionId(quoteId, commissionId)).thenReturn(Optional.of(quote));
+        // The Artist has published a newer version since the acceptance.
+        when(termsService.lockCurrent(artistId)).thenReturn(artistTerms(62L, 3));
+        when(termsService.get(termsId)).thenReturn(artistTerms(termsId, 2));
+
+        // when
+        var byCustomer = service.getAcceptedTerms(customerId, commissionId, quoteId);
+        var byArtist = service.getAcceptedTerms(artistUserId, commissionId, quoteId);
+        var byAdmin = service.getAcceptedTermsAsAdmin(commissionId, quoteId);
+
+        // then
+        assertAll(
+            () -> assertThat(byCustomer.getArtistTermsId()).isEqualTo(termsId),
+            () -> assertThat(byCustomer.getVersionNo()).isEqualTo(2),
+            () -> assertThat(byArtist.getArtistTermsId()).isEqualTo(termsId),
+            () -> assertThat(byAdmin.getArtistTermsId()).isEqualTo(termsId)
+        );
+    }
+
+    @Test
+    void get_accepted_terms_not_participant_ko() {
+        // given
+        when(repository.findById(commissionId)).thenReturn(Optional.of(commission("AWAITING_PAYMENT")));
+
+        // when / then
+        assertThatThrownBy(() -> service.getAcceptedTerms(strangerId, commissionId, quoteId))
+            .isInstanceOf(AppException.class)
+            .extracting("error")
+            .isEqualTo(AppErrorMessage.COMMISSION_NOT_FOUND);
+        verify(termsService, never()).get(any());
     }
 
     @Test
@@ -547,7 +637,7 @@ class CommissionQuoteServiceTest {
 
     private CommissionQuoteServiceImpl quoteService(String taxRate) {
         return new CommissionQuoteServiceImpl(repository, quoteRepository, eventRepository, cancellationRepository,
-            commissionMapper, mapper, artistService,
+            commissionMapper, mapper, artistService, termsService,
             new CheckoutProperties(new BigDecimal(taxRate), BigDecimal.ZERO, 5));
     }
 
@@ -584,6 +674,16 @@ class CommissionQuoteServiceTest {
             .withPrice(new BigDecimal(price))
             .withScopeText(scope)
             .withExpectedCompletionTerms(completion)
+            .build();
+    }
+
+    private ArtistTerms artistTerms(Long artistTermsId, int versionNo) {
+        return ArtistTerms.builder()
+            .withArtistTermsId(artistTermsId)
+            .withArtistId(artistId)
+            .withVersionNo(versionNo)
+            .withText("No refund after the lineart")
+            .withImages(List.of())
             .build();
     }
 

@@ -115,7 +115,9 @@ under their own terms, and only the Customer's acceptance cancels the Commission
 `0007`). The refund returns that percentage of the Artist's share and of the tax half, rounded half-up, sent by hand
 as in F15, and the rest is released to the Artist at once. `CANCEL_REFUND` carries the Admin's percentage and
 `CANCEL_NO_REFUND` releases the whole share. Following [Commission refunds](commission-refunds.md). The Artist's terms
-(text and images), change Quotes and the license contract come later.
+(text and images) are published as immutable versions, required before a Quote is offered and recorded on the Quote at
+acceptance (migration `0008`), following [Artist terms](artist-terms.md). Change Quotes and the license contract come
+later.
 
 Requirements change recorded 31 October 2026: the site is the storefront of one
 Artist team, with no Platform Fee, held funds released to each Artist's own

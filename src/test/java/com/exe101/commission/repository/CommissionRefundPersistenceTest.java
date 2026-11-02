@@ -1,6 +1,8 @@
 package com.exe101.commission.repository;
 
+import com.exe101.artist.model.TermsPublication;
 import com.exe101.artist.repository.ArtistRepository;
+import com.exe101.artist.service.ArtistTermsService;
 import com.exe101.commission.model.Commission;
 import com.exe101.commission.model.CommissionRequest;
 import com.exe101.commission.model.DisputeOutcome;
@@ -97,6 +99,8 @@ class CommissionRefundPersistenceTest {
     private VnpayProperties vnpay;
     @Autowired
     private JdbcTemplate jdbc;
+    @Autowired
+    private ArtistTermsService termsService;
     @Autowired
     private PlatformTransactionManager transactionManager;
     private Long adminId;
@@ -431,6 +435,9 @@ class CommissionRefundPersistenceTest {
         var artistUserId = newUser();
         var artist = artistRepository.saveAndFlush(new ArtistProfile(artistUserId, "Painter", "ACTIVE", true, adminId,
             now(), null));
+        var artistTerms = termsService.publish(artistUserId, TermsPublication.builder()
+            .withText("No refund after the lineart")
+            .build());
         Commission commission = commissionService.request(customerId, CommissionRequest.builder()
             .withArtistId(artist.getArtistId())
             .withDescription("Portrait of my cat")
@@ -442,7 +449,8 @@ class CommissionRefundPersistenceTest {
             .withScopeText("Full-body portrait, one character")
             .withExpectedCompletionTerms("Within 3 weeks of the first payment")
             .build());
-        quoteService.accept(customerId, commission.getCommissionId(), quote.getQuoteId());
+        quoteService.accept(customerId, commission.getCommissionId(), quote.getQuoteId(),
+            artistTerms.getArtistTermsId());
 
         return new Accepted(customerId, artistUserId, artist.getArtistId(), commission.getCommissionId(),
             quote.getQuoteId());

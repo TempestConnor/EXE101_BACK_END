@@ -25,6 +25,7 @@ import com.exe101.file.model.FileContent;
 import com.exe101.file.model.NewFile;
 import com.exe101.file.model.StoredFileInfo;
 import com.exe101.file.service.FileService;
+import com.exe101.file.service.PreviewImages;
 import com.exe101.tag.model.Tag;
 import com.exe101.tag.service.TagService;
 import java.time.OffsetDateTime;

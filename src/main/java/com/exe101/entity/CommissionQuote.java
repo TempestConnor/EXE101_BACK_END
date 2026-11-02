@@ -36,6 +36,7 @@ public class CommissionQuote  implements java.io.Serializable {
      private OffsetDateTime offeredAt;
      private OffsetDateTime acceptedAt;
      private OffsetDateTime paidAt;
+     private Long artistTermsId;
 
     public CommissionQuote() {
     }
@@ -224,6 +225,16 @@ public class CommissionQuote  implements java.io.Serializable {
     
     public void setPaidAt(OffsetDateTime paidAt) {
         this.paidAt = paidAt;
+    }
+
+    
+    @Column(name="ArtistTermsId", columnDefinition="bigint")
+    public Long getArtistTermsId() {
+        return this.artistTermsId;
+    }
+    
+    public void setArtistTermsId(Long artistTermsId) {
+        this.artistTermsId = artistTermsId;
     }
 
 

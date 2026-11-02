@@ -1,6 +1,8 @@
 package com.exe101.commission.repository;
 
+import com.exe101.artist.model.TermsPublication;
 import com.exe101.artist.repository.ArtistRepository;
+import com.exe101.artist.service.ArtistTermsService;
 import com.exe101.commission.model.Commission;
 import com.exe101.commission.model.CommissionDeliverable;
 import com.exe101.commission.model.CommissionRequest;
@@ -70,6 +72,8 @@ class CommissionDeliveryPersistenceTest {
     private StaffRepository staffRepository;
     @Autowired
     private JdbcTemplate jdbc;
+    @Autowired
+    private ArtistTermsService termsService;
     @Autowired
     private PlatformTransactionManager transactionManager;
     private Long adminId;
@@ -197,6 +201,9 @@ class CommissionDeliveryPersistenceTest {
         var artistUserId = newUser();
         var artist = artistRepository.saveAndFlush(new ArtistProfile(artistUserId, "Painter", "ACTIVE", true, adminId,
             now(), null));
+        var artistTerms = termsService.publish(artistUserId, TermsPublication.builder()
+            .withText("No refund after the lineart")
+            .build());
         Commission commission = commissionService.request(customerId, CommissionRequest.builder()
             .withArtistId(artist.getArtistId())
             .withDescription("Portrait of my cat")
@@ -208,7 +215,8 @@ class CommissionDeliveryPersistenceTest {
             .withScopeText("Full-body portrait, one character")
             .withExpectedCompletionTerms("Within 3 weeks of the first payment")
             .build());
-        quoteService.accept(customerId, commission.getCommissionId(), offered.getQuoteId());
+        quoteService.accept(customerId, commission.getCommissionId(), offered.getQuoteId(),
+            artistTerms.getArtistTermsId());
         jdbc.update("UPDATE dbo.Commission SET Status = 'IN_PROGRESS' WHERE CommissionId = ?",
             commission.getCommissionId());
         return new Parties(customerId, artistUserId, commission.getCommissionId());

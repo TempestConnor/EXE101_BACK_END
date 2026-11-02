@@ -104,6 +104,15 @@ public class ArtistServiceImpl implements ArtistService {
         return mapper.toModel(entity);
     }
 
+    // UPDLOCK until commit: the Artist's own changes run one at a time and wait for a status change in progress.
+    @Override
+    public Artist lockByUserId(Long userId) {
+        ArtistProfile entity = repository.findWithLockByUserId(userId)
+            .orElseThrow(() -> new AppException(AppErrorMessage.ARTIST_PROFILE_REQUIRED));
+
+        return mapper.toModel(entity);
+    }
+
     @Override
     public List<Artist> lockForPurchase(Collection<Long> artistIds) {
         if (artistIds == null || artistIds.isEmpty()) {

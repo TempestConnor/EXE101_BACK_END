@@ -22,7 +22,7 @@ class DatabaseMappingTest {
 
     @Test
     void mapsAllApplicationTables() {
-        assertEquals(47, entityManagerFactory.getMetamodel().getEntities().size());
+        assertEquals(49, entityManagerFactory.getMetamodel().getEntities().size());
     }
 
     @Test

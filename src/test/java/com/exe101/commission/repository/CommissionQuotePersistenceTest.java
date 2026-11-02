@@ -1,6 +1,8 @@
 package com.exe101.commission.repository;
 
+import com.exe101.artist.model.TermsPublication;
 import com.exe101.artist.repository.ArtistRepository;
+import com.exe101.artist.service.ArtistTermsService;
 import com.exe101.commission.model.Commission;
 import com.exe101.commission.model.CommissionQuote;
 import com.exe101.commission.model.CommissionRequest;
@@ -70,6 +72,8 @@ class CommissionQuotePersistenceTest {
     @Autowired
     private JdbcTemplate jdbc;
     @Autowired
+    private ArtistTermsService termsService;
+    @Autowired
     private PlatformTransactionManager transactionManager;
     private Long adminId;
 
@@ -90,7 +94,8 @@ class CommissionQuotePersistenceTest {
         var offered = quoteService.offer(parties.artistUserId(), parties.commissionId(), terms());
 
         // when
-        quoteService.accept(parties.customerId(), parties.commissionId(), offered.getQuoteId());
+        quoteService.accept(parties.customerId(), parties.commissionId(), offered.getQuoteId(),
+            parties.artistTermsId());
         var quote = jdbc.queryForMap("SELECT Status, Price, TaxAmount, FeeRate, FeeAmount, ArtistProceeds, AcceptedAt, "
             + "PaidAt FROM dbo.CommissionQuote WHERE QuoteId = ?", offered.getQuoteId());
         var reconciliation = ledgerService.reconcile();
@@ -122,7 +127,8 @@ class CommissionQuotePersistenceTest {
         // given
         var parties = newCommission();
         var offered = quoteService.offer(parties.artistUserId(), parties.commissionId(), terms());
-        quoteService.accept(parties.customerId(), parties.commissionId(), offered.getQuoteId());
+        quoteService.accept(parties.customerId(), parties.commissionId(), offered.getQuoteId(),
+            parties.artistTermsId());
 
         // when / then
         // Price and proceeds change together, so only the trigger (not the proceeds CHECK) can reject the update.
@@ -154,7 +160,7 @@ class CommissionQuotePersistenceTest {
             // The acceptance is held uncommitted while the Artist withdraws the same Quote.
             Future<CommissionQuote> acceptance = executor.submit(() -> inTransaction(() -> {
                 var outcome = quoteService.accept(parties.customerId(), parties.commissionId(),
-                    offered.getQuoteId());
+                    offered.getQuoteId(), parties.artistTermsId());
                 accepted.countDown();
                 release.await(waitSeconds, TimeUnit.SECONDS);
                 return outcome;
@@ -228,13 +234,16 @@ class CommissionQuotePersistenceTest {
         var artistUserId = newUser();
         var artist = artistRepository.saveAndFlush(new ArtistProfile(artistUserId, "Painter", "ACTIVE", true, adminId,
             now(), null));
+        var artistTerms = termsService.publish(artistUserId, TermsPublication.builder()
+            .withText("No refund after the lineart")
+            .build());
         Commission commission = commissionService.request(customerId, CommissionRequest.builder()
             .withArtistId(artist.getArtistId())
             .withDescription("Portrait of my cat")
             .withAllowPublicDisplay(false)
             .withUploads(List.of())
             .build());
-        return new Parties(customerId, artistUserId, commission.getCommissionId());
+        return new Parties(customerId, artistUserId, commission.getCommissionId(), artistTerms.getArtistTermsId());
     }
 
     private QuoteTerms terms() {
@@ -300,6 +309,6 @@ class CommissionQuotePersistenceTest {
         return OffsetDateTime.now(ZoneOffset.UTC).withNano(0);
     }
 
-    private record Parties(Long customerId, Long artistUserId, Long commissionId) {
+    private record Parties(Long customerId, Long artistUserId, Long commissionId, Long artistTermsId) {
     }
 }

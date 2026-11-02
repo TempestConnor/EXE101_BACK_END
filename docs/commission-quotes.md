@@ -47,6 +47,10 @@ come with the next increment, F17b.
   `QUOTE_WITHDRAWN` (`QUOTED` → `REQUESTED`), and `DECLINED`. When the decline withdraws an open offer, it also writes a
   `QUOTE_WITHDRAWN` event with no status change.
 - **Access:** only participants can read Quotes; anyone else gets `404 COMMISSION_NOT_FOUND`.
+- **The Artist's terms (added with F20, 2 November 2026):** offering a Quote needs published
+  [Artist terms](artist-terms.md) (`409 ARTIST_TERMS_REQUIRED`). Accepting names the version the Customer read
+  (`artistTermsId`); only the Artist's current version is accepted (`409 ARTIST_TERMS_OUTDATED`), and the Quote records
+  it in `ArtistTermsId` (migration `0008`), immutable after acceptance.
 
 ## HTTP contract
 
@@ -56,13 +60,13 @@ All endpoints need a Customer bearer token.
 | --- | --- | --- | --- |
 | `GET /commissions/{id}/quotes` | participants | — | 200, the Quotes in sequence order |
 | `POST /commissions/{id}/quotes` | the Artist | JSON `price`, `scopeText`, `expectedCompletionTerms` | 201 with the Quote (`status: "OFFERED"`) |
-| `POST /commissions/{id}/quotes/{quoteId}/accept` | the Customer | — | 200 with the Quote (`ACCEPTED`) |
+| `POST /commissions/{id}/quotes/{quoteId}/accept` | the Customer | JSON `artistTermsId` | 200 with the Quote (`ACCEPTED`) |
 | `POST /commissions/{id}/quotes/{quoteId}/decline` | the Customer | — | 200 with the Quote (`DECLINED`) |
 | `POST /commissions/{id}/quotes/{quoteId}/withdraw` | the Artist | — | 200 with the Quote (`WITHDRAWN`) |
 | `POST /commissions/{id}/decline` | the Artist | — | 200 with the Commission summary (`DECLINED`) |
 
 A Quote carries `quoteId`, `commissionId`, `sequenceNo`, `scopeText`, `expectedCompletionTerms`, `price`, `taxAmount`,
-`totalAmount`, `currencyCode`, `status`, `offeredAt`, `acceptedAt` and `paidAt`.
+`totalAmount`, `currencyCode`, `status`, `offeredAt`, `acceptedAt`, `paidAt` and `artistTermsId`.
 
 New error codes: `QUOTE_NOT_FOUND` (404); `QUOTE_INVALID` (400); `QUOTE_ALREADY_OFFERED`, `QUOTE_NOT_OFFERED`,
 `COMMISSION_ACTION_NOT_ALLOWED` (409).

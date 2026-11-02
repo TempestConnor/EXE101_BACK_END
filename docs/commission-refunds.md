@@ -106,15 +106,18 @@ any more). Otherwise the F19 codes apply; `CANCEL_REFUND` without a percentage i
 
 ## Deferred
 
-- **The Artist's terms** (text and images on the Artist profile, shown publicly): a separate later feature. Until
-  then the front end links to the Artist's own page.
+- ~~**The Artist's terms**~~: done in [Artist terms](artist-terms.md) (migration `0008`). Each Quote records the
+  version it was accepted under, and the participants and the Admin read it with
+  `GET …/quotes/{quoteId}/terms`.
 - **Change Quotes** (§21): a refund covers the first installment of the one accepted Quote.
 - **The license contract** (amendment §D.17).
 
 ## Known limits
 
-- **Nothing checks the percentage against the Artist's terms**, which are not in the system; the Customer's
-  acceptance is the check, as on VGen. Closing it: storing the terms, or a refund schedule per Quote.
+- **Nothing checks the percentage against the Artist's terms.** The terms are stored and each Quote records the
+  version it was accepted under ([Artist terms](artist-terms.md)), but they are free text, so the Customer's
+  acceptance (or the Admin's judgement in a dispute) is the check, as on VGen. Closing it: a structured refund
+  schedule per Quote that the system applies.
 - **The proceeds row is overwritten** when a refund is partial: its `Amount` becomes the remainder. The original
   amount survives only in the Quote, the Payment, the ledger receipt and the refund. Closing it: a `RefundedAmount`
   column, which needs a migration.

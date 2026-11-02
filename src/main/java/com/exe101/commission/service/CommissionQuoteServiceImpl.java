@@ -1,7 +1,9 @@
 package com.exe101.commission.service;
 
 import com.exe101.artist.model.Artist;
+import com.exe101.artist.model.ArtistTerms;
 import com.exe101.artist.service.ArtistService;
+import com.exe101.artist.service.ArtistTermsService;
 import com.exe101.cart.config.CheckoutProperties;
 import com.exe101.commission.mapper.CommissionEntityMapper;
 import com.exe101.commission.mapper.CommissionQuoteEntityMapper;
@@ -30,7 +32,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 // Every Quote action locks the Commission row (UPDLOCK) first, so the actions on one Commission run one at a time
 // and a racing accept and withdraw have exactly one winner (spec C.7). Offer and accept then read the Artist under
-// the shared lock of a request, so a deactivation either commits first or waits (amendment §A.4).
+// the shared lock of a request, so a deactivation either commits first or waits (amendment §A.4). Accept last locks
+// the Artist's latest terms, so a newer version is published either before (and the acceptance is refused) or after.
 @Slf4j
 @Service
 @Transactional
@@ -50,6 +53,7 @@ public class CommissionQuoteServiceImpl implements CommissionQuoteService {
     private final CommissionEntityMapper commissionMapper;
     private final CommissionQuoteEntityMapper mapper;
     private final ArtistService artistService;
+    private final ArtistTermsService termsService;
     private final CheckoutProperties checkout;
 
     @Override
@@ -86,6 +90,12 @@ public class CommissionQuoteServiceImpl implements CommissionQuoteService {
         }
 
         requireActiveArtist(commission);
+
+        // A refund is agreed under the Artist's terms, so the Customer must be able to read them before accepting.
+        if (!termsService.hasTerms(commission.getArtistId())) {
+            throw new AppException(AppErrorMessage.ARTIST_TERMS_REQUIRED);
+        }
+
         OffsetDateTime offeredAt = now();
         int sequenceNo = quoteRepository.findLastSequenceNo(commissionId) + 1;
         com.exe101.entity.CommissionQuote saved = quoteRepository.saveAndFlush(new com.exe101.entity.CommissionQuote(
@@ -99,14 +109,22 @@ public class CommissionQuoteServiceImpl implements CommissionQuoteService {
     }
 
     // Accepting binds the terms and writes the zero-fee snapshot; it creates no Payment (§19.11). The Commission
-    // then awaits the first 50% payment, which comes before the sketch (approved 2 November 2026).
+    // then awaits the first 50% payment, which comes before the sketch (approved 2 November 2026). The Customer names
+    // the version of the Artist's terms they read; only the current one is accepted, and the Quote records it.
     @Override
-    public CommissionQuote accept(Long userId, Long commissionId, Long quoteId) {
+    public CommissionQuote accept(Long userId, Long commissionId, Long quoteId, Long artistTermsId) {
         com.exe101.entity.Commission commission = lock(commissionId);
         requireCustomer(userId, commission);
         com.exe101.entity.CommissionQuote quote = requireOffered(commission, quoteId);
         requireActiveArtist(commission);
+        ArtistTerms terms = termsService.lockCurrent(commission.getArtistId());
+
+        if (!terms.getArtistTermsId().equals(artistTermsId)) {
+            throw new AppException(AppErrorMessage.ARTIST_TERMS_OUTDATED);
+        }
+
         OffsetDateTime acceptedAt = now();
+        quote.setArtistTermsId(artistTermsId);
         quote.setStatus(QuoteStatus.ACCEPTED.name());
         quote.setAcceptedAt(acceptedAt);
         quote.setFeeRate(BigDecimal.ZERO.setScale(rateScale));
@@ -174,6 +192,39 @@ public class CommissionQuoteServiceImpl implements CommissionQuoteService {
         log.info("[COMMISSION] - ACTION: declineRequest: commissionId: {}", commissionId);
 
         return commissionMapper.toModel(commission);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ArtistTerms getAcceptedTerms(Long userId, Long commissionId, Long quoteId) {
+        com.exe101.entity.Commission commission = repository.findById(commissionId)
+            .orElseThrow(() -> new AppException(AppErrorMessage.COMMISSION_NOT_FOUND));
+        isArtist(userId, commission);
+
+        return acceptedTerms(commissionId, quoteId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ArtistTerms getAcceptedTermsAsAdmin(Long commissionId, Long quoteId) {
+        if (!repository.existsById(commissionId)) {
+            throw new AppException(AppErrorMessage.COMMISSION_NOT_FOUND);
+        }
+
+        return acceptedTerms(commissionId, quoteId);
+    }
+
+    // The exact version the Quote was accepted under, even after the Artist publishes a newer one. A Quote not yet
+    // accepted, or accepted before terms existed, has none.
+    private ArtistTerms acceptedTerms(Long commissionId, Long quoteId) {
+        com.exe101.entity.CommissionQuote quote = quoteRepository.findByQuoteIdAndCommissionId(quoteId, commissionId)
+            .orElseThrow(() -> new AppException(AppErrorMessage.QUOTE_NOT_FOUND));
+
+        if (quote.getArtistTermsId() == null) {
+            throw new AppException(AppErrorMessage.ARTIST_TERMS_NOT_FOUND);
+        }
+
+        return termsService.get(quote.getArtistTermsId());
     }
 
     private com.exe101.entity.Commission lock(Long commissionId) {

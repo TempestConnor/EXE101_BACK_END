@@ -21,7 +21,7 @@ Customer authentication requires `JWT_SECRET` before running the application;
 see [F01 setup and API contract](docs/customer-authentication.md).
 
 `Verify` compiles/packages the application, validates all entity mappings, and
-executes a read-only query for each of the 47 entities. It does not insert or
+executes a read-only query for each of the 49 entities. It does not insert or
 update data. `Run` starts the backend on port 8080. Customer registration, token
 login and the authenticated profile endpoint are implemented.
 
@@ -51,7 +51,7 @@ shows the previous unmanaged Java project.
 
 ## Generated entities
 
-`src/main/java/com/exe101/entity` contains 47 entities and five composite ID classes.
+`src/main/java/com/exe101/entity` contains 49 entities and five composite ID classes.
 SQL Server's `sysdiagrams` table is excluded. Hibernate Tools 7.3.13.Final produces
 the Java source; `tooling/NormalizeEntities.java` reads live column metadata to
 correct SQL Server details:

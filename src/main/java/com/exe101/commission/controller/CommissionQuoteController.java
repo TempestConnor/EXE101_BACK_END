@@ -1,5 +1,8 @@
 package com.exe101.commission.controller;
 
+import com.exe101.artist.dto.ArtistTermsDTO;
+import com.exe101.artist.mapper.ArtistMapper;
+import com.exe101.commission.dto.AcceptQuoteDTO;
 import com.exe101.commission.dto.CommissionQuoteDTO;
 import com.exe101.commission.dto.CommissionSummaryDTO;
 import com.exe101.commission.dto.OfferQuoteDTO;
@@ -26,6 +29,7 @@ public class CommissionQuoteController {
     private final CommissionQuoteService quoteService;
     private final CommissionQuoteMapper mapper;
     private final CommissionMapper commissionMapper;
+    private final ArtistMapper artistMapper;
 
     @GetMapping("/quotes")
     public List<CommissionQuoteDTO> list(@PathVariable Long commissionId, @AuthenticationPrincipal Long userId) {
@@ -49,10 +53,21 @@ public class CommissionQuoteController {
 
     @PostMapping("/quotes/{quoteId}/accept")
     public CommissionQuoteDTO accept(
+        @PathVariable Long commissionId, @PathVariable Long quoteId, @RequestBody @Valid AcceptQuoteDTO dto,
+        @AuthenticationPrincipal Long userId
+    ) {
+        var accepted = quoteService.accept(userId, commissionId, quoteId, dto.artistTermsId());
+        var response = mapper.toDto(accepted);
+
+        return response;
+    }
+
+    @GetMapping("/quotes/{quoteId}/terms")
+    public ArtistTermsDTO getAcceptedTerms(
         @PathVariable Long commissionId, @PathVariable Long quoteId, @AuthenticationPrincipal Long userId
     ) {
-        var accepted = quoteService.accept(userId, commissionId, quoteId);
-        var response = mapper.toDto(accepted);
+        var terms = quoteService.getAcceptedTerms(userId, commissionId, quoteId);
+        var response = artistMapper.toDto(terms);
 
         return response;
     }

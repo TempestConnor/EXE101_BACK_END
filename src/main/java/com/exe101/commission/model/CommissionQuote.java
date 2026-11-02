@@ -28,4 +28,5 @@ public class CommissionQuote {
     private OffsetDateTime offeredAt;
     private OffsetDateTime acceptedAt;
     private OffsetDateTime paidAt;
+    private Long artistTermsId;
 }

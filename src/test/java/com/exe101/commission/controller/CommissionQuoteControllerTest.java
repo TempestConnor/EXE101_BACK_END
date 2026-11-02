@@ -1,5 +1,6 @@
 package com.exe101.commission.controller;
 
+import com.exe101.artist.mapper.ArtistMapperImpl;
 import com.exe101.commission.mapper.CommissionMapperImpl;
 import com.exe101.commission.mapper.CommissionQuoteEntityMapperImpl;
 import com.exe101.commission.mapper.CommissionQuoteMapperImpl;
@@ -42,7 +43,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(CommissionQuoteController.class)
-@Import({CommissionQuoteMapperImpl.class, CommissionMapperImpl.class, StaffTokenIssuer.class,
+@Import({CommissionQuoteMapperImpl.class, CommissionMapperImpl.class, ArtistMapperImpl.class, StaffTokenIssuer.class,
     StaffTokenConfiguration.class, StaffAuthenticationConverter.class, CustomerTokenIssuer.class,
     CustomerTokenConfiguration.class, CustomerAuthenticationConverter.class, SecurityConfiguration.class,
     SecurityProblemHandler.class, GlobalExceptionHandler.class})
@@ -103,10 +104,13 @@ class CommissionQuoteControllerTest {
     void accept_quote_returns_200_ok() throws Exception {
         // given
         var token = customerToken();
-        when(quotes.accept(42L, 3L, 21L)).thenReturn(quote(QuoteStatus.ACCEPTED));
+        when(quotes.accept(42L, 3L, 21L, 61L)).thenReturn(quote(QuoteStatus.ACCEPTED));
 
         // when / then
-        mvc.perform(post("/commissions/3/quotes/21/accept").header("Authorization", "Bearer " + token))
+        mvc.perform(post("/commissions/3/quotes/21/accept").header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON).content("""
+                    {"artistTermsId":61}
+                    """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.quoteId").value(21))
             .andExpect(jsonPath("$.status").value("ACCEPTED"))

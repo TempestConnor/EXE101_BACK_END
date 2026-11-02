@@ -1,10 +1,10 @@
-package com.exe101.artwork.service;
+package com.exe101.file.service;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 // Preview type is decided from the file signature, never from the client-declared content type.
-final class PreviewImages {
+public final class PreviewImages {
     private static byte[] jpegSignature = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF};
     private static byte[] pngSignature = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'};
     private static byte[] riffSignature = "RIFF".getBytes(StandardCharsets.US_ASCII);
@@ -15,7 +15,7 @@ final class PreviewImages {
         throw new UnsupportedOperationException("This class should never be instantiated");
     }
 
-    static String detectContentType(byte[] bytes) {
+    public static String detectContentType(byte[] bytes) {
         if (startsWith(bytes, jpegSignature, 0)) {
             return "image/jpeg";
         }

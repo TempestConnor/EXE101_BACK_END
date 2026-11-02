@@ -24,5 +24,6 @@ public interface CommissionQuoteEntityMapper {
     @Mapping(source = "offeredAt", target = "withOfferedAt")
     @Mapping(source = "acceptedAt", target = "withAcceptedAt")
     @Mapping(source = "paidAt", target = "withPaidAt")
+    @Mapping(source = "artistTermsId", target = "withArtistTermsId")
     CommissionQuote toModel(com.exe101.entity.CommissionQuote entity);
 }
