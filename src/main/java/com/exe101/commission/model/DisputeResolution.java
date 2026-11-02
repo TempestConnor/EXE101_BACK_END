@@ -14,4 +14,5 @@ import lombok.Setter;
 public class DisputeResolution {
     private DisputeOutcome outcome;
     private String reason;
+    private Integer refundPercent;
 }

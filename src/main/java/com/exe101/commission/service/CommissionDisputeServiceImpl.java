@@ -46,6 +46,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class CommissionDisputeServiceImpl implements CommissionDisputeService {
     private static int maxTextLength = 5000;
     private static int maxStaffReasonLength = 2000;
+    private static int maxPercent = 100;
     private static String openedEvent = "DISPUTE_OPENED";
     private static String resolvedEvent = "DISPUTE_RESOLVED";
     private static String reviewAction = "COMMISSION_DISPUTE_REVIEW_STARTED";
@@ -181,7 +182,10 @@ public class CommissionDisputeServiceImpl implements CommissionDisputeService {
         DisputeOutcome outcome = resolution == null ? null : resolution.getOutcome();
         String reason = resolution == null || resolution.getReason() == null ? "" : resolution.getReason().strip();
 
-        if (outcome == null || reason.isEmpty() || reason.length() > maxStaffReasonLength) {
+        Integer refundPercent = resolution == null ? null : resolution.getRefundPercent();
+
+        if (outcome == null || reason.isEmpty() || reason.length() > maxStaffReasonLength
+            || !validRefundPercent(outcome, refundPercent)) {
             throw new AppException(AppErrorMessage.DISPUTE_RESOLUTION_INVALID);
         }
 
@@ -211,7 +215,7 @@ public class CommissionDisputeServiceImpl implements CommissionDisputeService {
             cancellations.cancel(commission, resolvedEvent, disputeId, null, staffId, reason, resolvedAt);
 
             if (outcome == DisputeOutcome.CANCEL_REFUND) {
-                refundService.openOnCancellation(commissionId, null, staffId, reason, resolvedAt);
+                refundService.settleByAdmin(commissionId, staffId, refundPercent, reason, resolvedAt);
             } else {
                 refundService.releaseOnCancellation(commissionId, resolvedAt);
             }
@@ -224,7 +228,7 @@ public class CommissionDisputeServiceImpl implements CommissionDisputeService {
             .withTargetId(disputeId)
             .withReason(reason)
             .withDetails("commissionId=" + commissionId + ";outcome=" + outcome + ";from=" + from + ";to="
-                + commission.getStatus())
+                + commission.getStatus() + (refundPercent == null ? "" : ";refundPercent=" + refundPercent))
             .build());
         log.info("[COMMISSION] - ACTION: resolveDispute: commissionId: {}: disputeId: {}: outcome: {}: status: {}",
             commissionId, disputeId, outcome, commission.getStatus());
@@ -232,6 +236,15 @@ public class CommissionDisputeServiceImpl implements CommissionDisputeService {
         resolved.setResolutionReason(reason);
 
         return resolved;
+    }
+
+    // CANCEL_REFUND carries the Admin's refund percentage (F20); the other outcomes carry none.
+    private boolean validRefundPercent(DisputeOutcome outcome, Integer refundPercent) {
+        if (outcome != DisputeOutcome.CANCEL_REFUND) {
+            return refundPercent == null;
+        }
+
+        return refundPercent != null && refundPercent >= 0 && refundPercent <= maxPercent;
     }
 
     // The Commission is locked before the dispute is read, in the same order as the participants' actions.

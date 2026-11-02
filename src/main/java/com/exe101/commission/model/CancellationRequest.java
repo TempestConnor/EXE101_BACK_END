@@ -20,4 +20,5 @@ public class CancellationRequest {
     private CancellationStatus status;
     private OffsetDateTime createdAt;
     private OffsetDateTime resolvedAt;
+    private Integer refundPercent;
 }

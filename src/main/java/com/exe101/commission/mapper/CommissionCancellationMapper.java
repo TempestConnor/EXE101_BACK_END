@@ -24,6 +24,7 @@ public interface CommissionCancellationMapper {
 
     @Mapping(source = "outcome", target = "withOutcome")
     @Mapping(source = "reason", target = "withReason")
+    @Mapping(source = "refundPercent", target = "withRefundPercent")
     DisputeResolution toModel(ResolveDisputeDTO dto);
 
     CancellationRequestDTO toDto(CancellationRequest request);

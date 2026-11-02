@@ -45,7 +45,6 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -257,7 +256,7 @@ class CommissionDisputeServiceTest {
     }
 
     @Test
-    void resolve_cancel_refund_ok() {
+    void resolve_cancel_refund_with_percentage_ok() {
         // given
         var commission = givenCommission("DISPUTED");
         givenDispute("UNDER_REVIEW");
@@ -267,7 +266,11 @@ class CommissionDisputeServiceTest {
         when(paymentRepository.findByQuoteIdAndStatus(quoteId, "PENDING")).thenReturn(List.of(last));
 
         // when
-        var result = service.resolve(staffId, disputeId, resolution(DisputeOutcome.CANCEL_REFUND, "Artist left"));
+        var result = service.resolve(staffId, disputeId, DisputeResolution.builder()
+            .withOutcome(DisputeOutcome.CANCEL_REFUND)
+            .withReason("Artist left")
+            .withRefundPercent(40)
+            .build());
         var audit = ArgumentCaptor.forClass(AuditEntry.class);
         verify(auditService).record(audit.capture());
         var event = ArgumentCaptor.forClass(CommissionEvent.class);
@@ -282,16 +285,16 @@ class CommissionDisputeServiceTest {
             () -> assertThat(event.getValue().getToStatus()).isEqualTo("CANCELLED"),
             () -> assertThat(event.getValue().getActorStaffId()).isEqualTo(staffId),
             () -> assertThat(audit.getValue().getDetails())
-                .isEqualTo("commissionId=3;outcome=CANCEL_REFUND;from=DISPUTED;to=CANCELLED")
+                .isEqualTo("commissionId=3;outcome=CANCEL_REFUND;from=DISPUTED;to=CANCELLED;refundPercent=40")
         );
-        // The paid installment stays HELD while the Commission's refund is opened for it (F20).
+        // The Admin's percentage is settled in the resolving transaction (F20).
         verify(paymentRepository, never()).saveAndFlush(first);
-        verify(refundService).openOnCancellation(eq(commissionId), isNull(), eq(staffId), eq("Artist left"), any());
+        verify(refundService).settleByAdmin(eq(commissionId), eq(staffId), eq(40), eq("Artist left"), any());
         verify(refundService, never()).releaseOnCancellation(anyLong(), any());
     }
 
     @Test
-    void resolve_cancel_no_refund_ok() {
+    void resolve_cancel_no_refund_releases_ok() {
         // given
         var commission = givenCommission("DISPUTED");
         givenDispute("UNDER_REVIEW");
@@ -311,7 +314,34 @@ class CommissionDisputeServiceTest {
         verify(paymentRepository, never()).saveAndFlush(any());
         // No refund: the held installment goes to the Artist (F20).
         verify(refundService).releaseOnCancellation(eq(commissionId), any());
-        verify(refundService, never()).openOnCancellation(anyLong(), any(), any(), any(), any());
+        verify(refundService, never()).settleByAdmin(anyLong(), any(), any(), any(), any());
+    }
+
+    @Test
+    void resolve_cancel_refund_without_percentage_ko() {
+        // given
+        givenCommission("DISPUTED");
+        givenDispute("UNDER_REVIEW");
+
+        // when / then
+        assertRejected(() -> service.resolve(staffId, disputeId,
+            resolution(DisputeOutcome.CANCEL_REFUND, "Artist left")), AppErrorMessage.DISPUTE_RESOLUTION_INVALID);
+        verify(repository, never()).findWithLockByCommissionId(anyLong());
+    }
+
+    @Test
+    void resolve_other_outcome_with_percentage_ko() {
+        // given
+        givenCommission("DISPUTED");
+        givenDispute("UNDER_REVIEW");
+
+        // when / then
+        assertRejected(() -> service.resolve(staffId, disputeId, DisputeResolution.builder()
+            .withOutcome(DisputeOutcome.CANCEL_NO_REFUND)
+            .withReason("Customer abandoned the work")
+            .withRefundPercent(50)
+            .build()), AppErrorMessage.DISPUTE_RESOLUTION_INVALID);
+        verify(refundService, never()).releaseOnCancellation(anyLong(), any());
     }
 
     @Test

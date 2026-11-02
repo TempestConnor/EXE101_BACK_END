@@ -109,12 +109,13 @@ and resolves it, audited, with `CONTINUE` restoring the interrupted status. No m
 `HELD`, and a payment landing on a cancelled or disputed Commission is an exception, following [Commission cancellation
 and disputes](commission-cancellation.md). Refunds (F20), change Quotes and the license contract come later.
 
-F20 increment (priority 3): cancelling a paid Commission opens its refund without being asked. The Artist enters a
-whole percentage of the held first payment under their own terms, and the Customer accepts it or objects, after which
-the Admin sets it, audited (migration `0007`). The refund returns that percentage of the Artist's share and of the tax
-half, rounded half-up, sent by hand as in F15, and the rest is released to the Artist at once. `CANCEL_NO_REFUND`
-releases the whole share. Following [Commission refunds](commission-refunds.md). Change Quotes and the license contract
-come later.
+F20 increment (priority 3): the refund of a paid Commission is agreed with its cancellation. The Artist's
+cancellation request, or their offer on the Customer's request, carries a whole percentage of the held first payment
+under their own terms, and only the Customer's acceptance cancels the Commission and settles the refund (migration
+`0007`). The refund returns that percentage of the Artist's share and of the tax half, rounded half-up, sent by hand
+as in F15, and the rest is released to the Artist at once. `CANCEL_REFUND` carries the Admin's percentage and
+`CANCEL_NO_REFUND` releases the whole share. Following [Commission refunds](commission-refunds.md). The Artist's terms
+(text and images), change Quotes and the license contract come later.
 
 Requirements change recorded 31 October 2026: the site is the storefront of one
 Artist team, with no Platform Fee, held funds released to each Artist's own

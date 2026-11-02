@@ -3,6 +3,8 @@ package com.exe101.commission.controller;
 import com.exe101.commission.dto.CancelCommissionDTO;
 import com.exe101.commission.dto.CancellationRequestDTO;
 import com.exe101.commission.dto.CommissionSummaryDTO;
+import com.exe101.commission.dto.RefundOfferDTO;
+import com.exe101.commission.dto.RequestCancellationDTO;
 import com.exe101.commission.dto.RespondCancellationDTO;
 import com.exe101.commission.mapper.CommissionCancellationMapper;
 import com.exe101.commission.mapper.CommissionMapper;
@@ -48,14 +50,26 @@ public class CommissionCancellationController {
         return response;
     }
 
+    // The Artist's request carries their refund offer; the Customer's does not.
     @PostMapping("/cancellation-requests")
     @ResponseStatus(HttpStatus.CREATED)
     public CancellationRequestDTO request(
-        @PathVariable Long commissionId, @RequestBody @Valid CancelCommissionDTO dto,
+        @PathVariable Long commissionId, @RequestBody @Valid RequestCancellationDTO dto,
         @AuthenticationPrincipal Long userId
     ) {
-        var requested = cancellationService.request(userId, commissionId, dto.reason());
+        var requested = cancellationService.request(userId, commissionId, dto.reason(), dto.refundPercent());
         var response = mapper.toDto(requested);
+
+        return response;
+    }
+
+    @PostMapping("/cancellation-requests/{cancellationId}/refund-offer")
+    public CancellationRequestDTO offerRefund(
+        @PathVariable Long commissionId, @PathVariable Long cancellationId, @RequestBody @Valid RefundOfferDTO dto,
+        @AuthenticationPrincipal Long userId
+    ) {
+        var offered = cancellationService.offerRefund(userId, commissionId, cancellationId, dto.refundPercent());
+        var response = mapper.toDto(offered);
 
         return response;
     }

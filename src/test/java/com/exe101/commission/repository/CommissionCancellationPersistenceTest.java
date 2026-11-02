@@ -60,10 +60,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
-// Cancellation and disputes (F19) move no money: paid installments stay HELD while the Commission's refund (F20) is
-// open, and a payment landing on a cancelled Commission is an exception booked to UNAPPLIED. Quote payments commit,
-// and Quotes, versions and cancellation history can never be deleted, so this runs only against the disposable test
-// database selected by TEST_DB_URL and leaves its rows there. Every payment goes through the IPN, so the database stays
+// Cancellation and disputes (F19): a paid Commission's cancellation settles its agreed refund (F20, see
+// CommissionRefundPersistenceTest), and a payment landing on a cancelled Commission is an exception booked to
+// UNAPPLIED. Quote payments commit, and Quotes, versions and cancellation history can never be deleted, so this runs
+// only against the disposable test database selected by TEST_DB_URL and leaves its rows there. Every payment goes through the IPN, so the database stays
 // reconcilable. At a 10% tax rate a price of 100 001 has a tax of 10 000: the first payment is 50 001 + 5 000 =
 // 55 001 and the final one 50 000 + 5 000 = 55 000. The scheduled jobs are slowed down so they do not run.
 @SpringBootTest(properties = {"app.orders.expiry-interval=PT1H", "app.fulfillment.grant-interval=PT1H",
@@ -157,11 +157,11 @@ class CommissionCancellationPersistenceTest {
         var paymentFirst = approvedCommission();
         var paymentFirstRef = startFinal(paymentFirst);
         var paymentFirstRequest = cancellationService.request(paymentFirst.artistUserId(), paymentFirst.commissionId(),
-            "I cannot deliver the print rights").getCancellationId();
+            "I cannot deliver the print rights", 100).getCancellationId();
         var acceptFirst = approvedCommission();
         var acceptFirstRef = startFinal(acceptFirst);
         var acceptFirstRequest = cancellationService.request(acceptFirst.artistUserId(), acceptFirst.commissionId(),
-            "I cannot deliver the print rights").getCancellationId();
+            "I cannot deliver the print rights", 100).getCancellationId();
 
         // when
         // The payment holds the Commission lock while the acceptance waits for it, and then the other way round.
@@ -190,33 +190,8 @@ class CommissionCancellationPersistenceTest {
             () -> assertThat(commissionStatus(acceptFirst.commissionId())).isEqualTo("CANCELLED"),
             () -> assertThat(cancellationStatus(acceptFirstRequest)).isEqualTo("ACCEPTED"),
             () -> assertThat(paymentStatus(acceptFirst.quoteId(), 2)).isEqualTo("EXCEPTION"),
-            () -> assertThat(proceedsStatuses(acceptFirst.quoteId())).containsExactly("HELD"),
+            () -> assertThat(proceedsStatuses(acceptFirst.quoteId())).containsExactly("VOID"),
             () -> assertThat(unappliedCount(acceptFirstRef)).isEqualTo(1),
-            () -> assertThat(reconciliation.getMismatches()).isEmpty()
-        );
-    }
-
-    @Test
-    void cancel_paid_commission_keeps_proceeds_held_ok() {
-        // given
-        var paid = paidCommission();
-        var request = cancellationService.request(paid.customerId(), paid.commissionId(), "Plans changed");
-
-        // when
-        cancellationService.accept(paid.artistUserId(), paid.commissionId(), request.getCancellationId(), "Agreed");
-
-        // then
-        var reconciliation = ledgerService.reconcile();
-        assertAll(
-            () -> assertThat(commissionStatus(paid.commissionId())).isEqualTo("CANCELLED"),
-            () -> assertThat(cancellationStatus(request.getCancellationId())).isEqualTo("ACCEPTED"),
-            () -> assertThat(proceedsStatuses(paid.quoteId())).containsExactly("HELD"),
-            () -> assertThat(releaseCount(paid.quoteId())).isZero(),
-            // F20 opens the refund; the money stays HELD until it is decided.
-            () -> assertThat(count("SELECT COUNT(*) FROM dbo.RefundRequest WHERE CommissionId = ? "
-                + "AND Status = 'REQUESTED'", paid.commissionId())).isEqualTo(1),
-            () -> assertThat(artistBalance(paid.quoteId(), "ARTIST_HELD")).isEqualByComparingTo("-50001"),
-            () -> assertThat(paymentStatus(paid.quoteId(), 1)).isEqualTo("SUCCEEDED"),
             () -> assertThat(reconciliation.getMismatches()).isEmpty()
         );
     }
@@ -247,7 +222,7 @@ class CommissionCancellationPersistenceTest {
     }
 
     @Test
-    void dispute_cancel_outcome_keeps_proceeds_held_ok() {
+    void dispute_cancel_outcome_audited_ok() {
         // given
         var paid = paidCommission();
         var dispute = disputeService.open(paid.customerId(), paid.commissionId(), "No progress for two weeks");
@@ -257,6 +232,7 @@ class CommissionCancellationPersistenceTest {
         var resolved = disputeService.resolve(adminId, dispute.getDisputeId(), DisputeResolution.builder()
             .withOutcome(DisputeOutcome.CANCEL_REFUND)
             .withReason("The Artist left the team")
+            .withRefundPercent(100)
             .build());
 
         // then
@@ -273,14 +249,15 @@ class CommissionCancellationPersistenceTest {
             () -> assertThat(stored.get("ResolvedAt")).isNotNull(),
             () -> assertThat(commissionStatus(paid.commissionId())).isEqualTo("CANCELLED"),
             () -> assertThat(events(paid.commissionId()))
-                .endsWith("DISPUTE_OPENED", "DISPUTE_UNDER_REVIEW", "DISPUTE_RESOLVED", "REFUND_OPENED"),
+                .endsWith("DISPUTE_OPENED", "DISPUTE_UNDER_REVIEW", "DISPUTE_RESOLVED"),
             () -> assertThat(audits).extracting(row -> row.get("ActionType"))
                 .containsExactly("COMMISSION_DISPUTE_REVIEW_STARTED", "COMMISSION_DISPUTE_RESOLVED"),
             () -> assertThat(audits).extracting(row -> ((Number) row.get("StaffId")).longValue()).containsOnly(adminId),
             () -> assertThat(audits.getLast().get("Reason")).isEqualTo("The Artist left the team"),
-            () -> assertThat(proceedsStatuses(paid.quoteId())).containsExactly("HELD"),
+            // F20: the Admin's 100% refunds the whole held first payment.
+            () -> assertThat(proceedsStatuses(paid.quoteId())).containsExactly("VOID"),
             () -> assertThat(releaseCount(paid.quoteId())).isZero(),
-            () -> assertThat(artistBalance(paid.quoteId(), "ARTIST_HELD")).isEqualByComparingTo("-50001"),
+            () -> assertThat(artistBalance(paid.quoteId(), "ARTIST_HELD")).isEqualByComparingTo("0"),
             () -> assertThat(reconciliation.getMismatches()).isEmpty()
         );
     }

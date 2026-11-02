@@ -7,6 +7,7 @@ import com.exe101.ledger.model.RefundMovement;
 import com.exe101.order.model.Order;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.Optional;
 
 public interface LedgerService {
     void recordPayment(Order order);
@@ -26,6 +27,8 @@ public interface LedgerService {
     void recordRefundApproved(RefundMovement movement);
 
     void recordRefundPaid(RefundMovement movement);
+
+    Optional<Long> findRefundQuoteId(Long refundRequestId);
 
     Reconciliation reconcile();
 

@@ -33,6 +33,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -163,6 +164,12 @@ public class LedgerServiceImpl implements LedgerService {
             movement.getOccurredAt(), List.of(
                 refundLine(LedgerAccount.REFUND_PAYABLE, null, movement, amount),
                 line(LedgerAccount.CASH, null, null, amount.negate())));
+    }
+
+    // A Commission refund names its Quote on the approval's REFUND_PAYABLE line; its payment names the same one.
+    @Override
+    public Optional<Long> findRefundQuoteId(Long refundRequestId) {
+        return entryRepository.findRefundQuoteId(refundRequestId);
     }
 
     @Override

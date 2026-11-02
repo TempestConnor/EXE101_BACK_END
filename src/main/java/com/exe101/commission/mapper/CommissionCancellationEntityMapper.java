@@ -15,6 +15,7 @@ public interface CommissionCancellationEntityMapper {
     @Mapping(source = "status", target = "withStatus")
     @Mapping(source = "createdAt", target = "withCreatedAt")
     @Mapping(source = "resolvedAt", target = "withResolvedAt")
+    @Mapping(target = "withRefundPercent", ignore = true)
     CancellationRequest toModel(com.exe101.entity.CancellationRequest entity);
 
     @Mapping(source = "disputeId", target = "withDisputeId")

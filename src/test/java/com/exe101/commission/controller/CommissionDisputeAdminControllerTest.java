@@ -95,7 +95,7 @@ class CommissionDisputeAdminControllerTest {
     }
 
     @Test
-    void resolve_dispute_returns_200_ok() throws Exception {
+    void resolve_cancel_refund_body_ok() throws Exception {
         // given
         var token = adminToken();
         when(disputes.resolve(eq(7L), eq(91L), any())).thenReturn(dispute(DisputeStatus.RESOLVED)
@@ -108,7 +108,7 @@ class CommissionDisputeAdminControllerTest {
         // when / then
         mvc.perform(post("/admin/commission-disputes/91/resolution").header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON).content("""
-                    {"outcome":"CANCEL_REFUND","reason":"Artist left the team"}
+                    {"outcome":"CANCEL_REFUND","reason":"Artist left the team","refundPercent":40}
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.disputeId").value(91))
@@ -120,7 +120,8 @@ class CommissionDisputeAdminControllerTest {
         verify(disputes).resolve(eq(7L), eq(91L), resolution.capture());
         assertAll(
             () -> assertThat(resolution.getValue().getOutcome()).isEqualTo(DisputeOutcome.CANCEL_REFUND),
-            () -> assertThat(resolution.getValue().getReason()).isEqualTo("Artist left the team")
+            () -> assertThat(resolution.getValue().getReason()).isEqualTo("Artist left the team"),
+            () -> assertThat(resolution.getValue().getRefundPercent()).isEqualTo(40)
         );
     }
 

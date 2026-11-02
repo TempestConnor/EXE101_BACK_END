@@ -138,10 +138,8 @@ public enum AppErrorMessage {
     REFUND_REFERENCE_IN_USE(HttpStatus.CONFLICT, "This transfer reference is already recorded for another refund."),
     REFUND_PERCENT_INVALID(HttpStatus.BAD_REQUEST, "The refund percentage must be a whole number from 0 to 100."),
     COMMISSION_REFUND_ACTION_NOT_ALLOWED(HttpStatus.CONFLICT,
-        "This action is not allowed at the refund's current step."),
+        "A paid Commission is cancelled only when the Customer accepts the Artist's one refund offer."),
     COMMISSION_REFUND_NOT_ALLOWED(HttpStatus.CONFLICT, "This Commission has no held payment to refund."),
-    COMMISSION_REFUND_REASON_INVALID(HttpStatus.BAD_REQUEST,
-        "A reason of 1 to 2000 characters is required to set the refund percentage."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "The request could not be completed.");
 
     private final HttpStatus status;

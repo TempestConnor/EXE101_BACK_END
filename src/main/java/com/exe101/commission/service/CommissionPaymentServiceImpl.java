@@ -48,6 +48,7 @@ public class CommissionPaymentServiceImpl implements CommissionPaymentService {
     private final QuotePaymentRepository paymentRepository;
     private final CancellationRequestRepository cancellationRepository;
     private final ArtistService artistService;
+    private final CommissionRefundService refundService;
 
     // Each installment's Payment is created with its first attempt, so Quotes accepted before Quote payments existed
     // need nothing else. The Commission is AWAITING_PAYMENT twice: before the first installment, and after approval,
@@ -96,12 +97,6 @@ public class CommissionPaymentServiceImpl implements CommissionPaymentService {
     @Transactional(readOnly = true)
     public boolean isQuotePayment(Long paymentId) {
         return paymentRepository.findQuoteIdByPaymentId(paymentId).isPresent();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public Optional<Long> findQuoteId(Long paymentId) {
-        return paymentRepository.findQuoteIdByPaymentId(paymentId);
     }
 
     // §12.6: only a confirmed success of the exact installment due changes the Commission. The first starts the work;
@@ -199,7 +194,8 @@ public class CommissionPaymentServiceImpl implements CommissionPaymentService {
     }
 
     // A payment page opened before a cancellation was requested can still be paid. The final payment then completes
-    // the Commission, and the request it overtook is closed as REJECTED, with the Customer, who paid, as actor.
+    // the Commission, and the request it overtook is closed as REJECTED, with the Customer, who paid, as actor, and
+    // the Artist's refund offer with it (F20).
     private void closePendingCancellation(Commission commission, OffsetDateTime closedAt) {
         cancellationRepository.findByCommissionIdAndStatus(commission.getCommissionId(),
             CancellationStatus.PENDING.name()).ifPresent(request -> {
@@ -209,6 +205,8 @@ public class CommissionPaymentServiceImpl implements CommissionPaymentService {
                 eventRepository.saveAndFlush(new CommissionEvent(commission.getCommissionId(), "CANCELLATION_CLOSED",
                     null, null, request.getCancellationId(), commission.getCustomerId(), null, closedAt,
                     "The final payment completed the Commission."));
+                refundService.closeOffer(commission.getCommissionId(), "The final payment completed the Commission.",
+                    closedAt);
             });
     }
 

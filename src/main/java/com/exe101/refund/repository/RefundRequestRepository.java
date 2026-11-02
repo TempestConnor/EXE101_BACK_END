@@ -29,10 +29,9 @@ public interface RefundRequestRepository extends JpaRepository<RefundRequest, Lo
 
     List<RefundRequest> findByOrderItemIdIsNotNullAndStatusOrderByRequestedAtDescRefundRequestIdDesc(String status);
 
-    // Only the Commission, so the request itself is first loaded under the Commission lock and never read stale.
-    @Query("SELECT r.commissionId FROM RefundRequest r WHERE r.refundRequestId = :refundRequestId"
-        + " AND r.commissionId IS NOT NULL")
-    Optional<Long> findCommissionIdByRefundRequestId(Long refundRequestId);
+    // UPDLOCK until commit, taken after the Commission lock.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<RefundRequest> findWithLockByCommissionIdAndStatus(Long commissionId, String status);
 
     List<RefundRequest> findByCommissionIdOrderByRefundRequestIdAsc(Long commissionId);
 

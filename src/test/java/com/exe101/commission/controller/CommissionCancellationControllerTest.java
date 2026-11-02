@@ -65,7 +65,7 @@ class CommissionCancellationControllerTest {
     void request_cancellation_returns_201_ok() throws Exception {
         // given
         var token = customerToken();
-        when(cancellations.request(42L, 3L, "The deadline no longer works")).thenReturn(CancellationRequest.builder()
+        when(cancellations.request(42L, 3L, "The deadline no longer works", null)).thenReturn(CancellationRequest.builder()
             .withCancellationId(81L)
             .withCommissionId(3L)
             .withRequestedByUserId(42L)
@@ -86,6 +86,44 @@ class CommissionCancellationControllerTest {
             .andExpect(jsonPath("$.reason").value("The deadline no longer works"))
             .andExpect(jsonPath("$.status").value("PENDING"))
             .andExpect(jsonPath("$.resolvedAt").doesNotExist());
+    }
+
+    @Test
+    void request_with_percentage_returns_201_ok() throws Exception {
+        // given
+        var token = customerToken();
+        when(cancellations.request(42L, 3L, "I can no longer finish it", 70)).thenReturn(CancellationRequest.builder()
+            .withCancellationId(81L)
+            .withCommissionId(3L)
+            .withRequestedByUserId(42L)
+            .withReason("I can no longer finish it")
+            .withStatus(CancellationStatus.PENDING)
+            .withCreatedAt(createdAt)
+            .withRefundPercent(70)
+            .build());
+
+        // when / then
+        mvc.perform(post("/commissions/3/cancellation-requests").header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON).content("""
+                    {"reason":"I can no longer finish it","refundPercent":70}
+                    """))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.status").value("PENDING"))
+            .andExpect(jsonPath("$.refundPercent").value(70));
+    }
+
+    @Test
+    void offer_missing_percentage_ko() throws Exception {
+        // given
+        var token = customerToken();
+
+        // when / then
+        mvc.perform(post("/commissions/3/cancellation-requests/81/refund-offer")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON).content("{}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
+        verifyNoInteractions(cancellations);
     }
 
     @Test

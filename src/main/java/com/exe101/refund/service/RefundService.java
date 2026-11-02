@@ -20,17 +20,17 @@ public interface RefundService {
 
     Refund recordTransferOutcome(Long staffId, Long transferId, TransferOutcome outcome);
 
-    Refund openForCommission(Long commissionId, Long customerId, String reason, OffsetDateTime openedAt);
+    Refund openForCommission(
+        Long commissionId, Long customerId, String reason, Integer percent, OffsetDateTime openedAt
+    );
 
     List<Refund> listForCommission(Long commissionId);
 
     List<Refund> listCommissionRefunds(RefundStatus status);
 
-    Optional<Long> findCommissionId(Long refundRequestId);
+    Optional<Refund> findOpenForCommission(Long commissionId);
 
-    Refund findLockedForCommission(Long commissionId, Long refundRequestId);
-
-    Refund recordPercent(Long refundRequestId, Integer percent);
+    Refund closeCommissionOffer(Long refundRequestId, String reason, OffsetDateTime closedAt);
 
     Refund settleCommission(CommissionRefundSettlement settlement);
 }

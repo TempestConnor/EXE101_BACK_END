@@ -2,8 +2,6 @@ package com.exe101.commission.repository;
 
 import com.exe101.artist.repository.ArtistRepository;
 import com.exe101.commission.model.Commission;
-import com.exe101.commission.model.CommissionRefund;
-import com.exe101.commission.model.CommissionRefundDecision;
 import com.exe101.commission.model.CommissionRequest;
 import com.exe101.commission.model.DisputeOutcome;
 import com.exe101.commission.model.DisputeResolution;
@@ -11,7 +9,6 @@ import com.exe101.commission.model.QuoteTerms;
 import com.exe101.commission.service.CommissionCancellationService;
 import com.exe101.commission.service.CommissionDisputeService;
 import com.exe101.commission.service.CommissionQuoteService;
-import com.exe101.commission.service.CommissionRefundService;
 import com.exe101.commission.service.CommissionService;
 import com.exe101.common.error.AppErrorMessage;
 import com.exe101.common.error.AppException;
@@ -64,8 +61,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
-// Commission refunds (F20) move money: the refund is posted to the ledger, the rest of the held share is released,
-// and the transfer is recorded by hand. Quote payments commit and cannot be deleted, so this runs only against the
+// Commission refunds (F20) move money: the refund agreed with a cancellation is posted to the ledger, the rest of the
+// held share is released, and the transfer is recorded by hand. Quote payments commit and cannot be deleted, so this runs only against the
 // disposable test database selected by TEST_DB_URL and leaves its rows there. Every payment goes through the IPN, so
 // the database stays reconcilable. At a 10% tax rate a price of 100 001 has a tax of 10 000: the first payment is
 // 50 001 + 5 000 = 55 001. The scheduled jobs are slowed down so they do not run.
@@ -86,8 +83,6 @@ class CommissionRefundPersistenceTest {
     private CommissionCancellationService cancellationService;
     @Autowired
     private CommissionDisputeService disputeService;
-    @Autowired
-    private CommissionRefundService commissionRefundService;
     @Autowired
     private RefundService refundService;
     @Autowired
@@ -119,16 +114,16 @@ class CommissionRefundPersistenceTest {
     @Test
     void agreed_refund_amounts_persist_and_reconcile_ok() {
         // given
-        var paid = cancelledPaidCommission();
+        var paid = paidCommission();
+        var request = cancellationService.request(paid.artistUserId(), paid.commissionId(), "I cannot finish it", 70);
         var refundId = openRefundId(paid);
-        commissionRefundService.setPercent(paid.artistUserId(), paid.commissionId(), refundId, 70);
 
         // when
-        var accepted = commissionRefundService.accept(paid.customerId(), paid.commissionId(), refundId);
+        cancellationService.accept(paid.customerId(), paid.commissionId(), request.getCancellationId(), "Agreed");
 
         // then
         // 70% of 50 001 = 35 000.7 -> 35 001; 70% of 5 000 = 3 500. The Artist keeps 15 000.
-        var request = jdbc.queryForMap("SELECT Status, RefundPercent, DecidedAt FROM dbo.RefundRequest "
+        var stored = jdbc.queryForMap("SELECT Status, RefundPercent, DecidedAt FROM dbo.RefundRequest "
             + "WHERE RefundRequestId = ?", refundId);
         var transfer = jdbc.queryForMap("SELECT Amount, Status, PaymentId FROM dbo.RefundTransfer "
             + "WHERE RefundRequestId = ?", refundId);
@@ -136,10 +131,10 @@ class CommissionRefundPersistenceTest {
             + "AND Installment = 1", paid.quoteId());
         var reconciliation = ledgerService.reconcile();
         assertAll(
-            () -> assertThat(accepted.getTransfer().getAmount()).isEqualByComparingTo("38501"),
-            () -> assertThat(request.get("Status")).isEqualTo("APPROVED"),
-            () -> assertThat(((Number) request.get("RefundPercent")).intValue()).isEqualTo(70),
-            () -> assertThat(request.get("DecidedAt")).isNotNull(),
+            () -> assertThat(commissionStatus(paid.commissionId())).isEqualTo("CANCELLED"),
+            () -> assertThat(stored.get("Status")).isEqualTo("APPROVED"),
+            () -> assertThat(((Number) stored.get("RefundPercent")).intValue()).isEqualTo(70),
+            () -> assertThat(stored.get("DecidedAt")).isNotNull(),
             () -> assertThat((BigDecimal) transfer.get("Amount")).isEqualByComparingTo("38501"),
             () -> assertThat(transfer.get("Status")).isEqualTo("PENDING"),
             () -> assertThat(((Number) transfer.get("PaymentId")).longValue()).isEqualTo(firstPaymentId(paid)),
@@ -153,7 +148,36 @@ class CommissionRefundPersistenceTest {
             () -> assertThat(artistBalance(paid.quoteId(), "ARTIST_HELD")).isEqualByComparingTo("0"),
             () -> assertThat(artistBalance(paid.quoteId(), "ARTIST_RELEASING")).isEqualByComparingTo("-15000"),
             () -> assertThat(events(paid.commissionId()))
-                .endsWith("REFUND_OPENED", "REFUND_PERCENT_SET", "REFUND_ACCEPTED"),
+                .endsWith("CANCELLATION_REQUESTED", "REFUND_OFFERED", "CANCELLATION_ACCEPTED"),
+            () -> assertThat(reconciliation.getMismatches()).isEmpty()
+        );
+    }
+
+    @Test
+    void customer_request_offer_accept_reconciles_ok() {
+        // given
+        var paid = paidCommission();
+        var request = cancellationService.request(paid.customerId(), paid.commissionId(), "Plans changed", null);
+        var offered = cancellationService.offerRefund(paid.artistUserId(), paid.commissionId(),
+            request.getCancellationId(), 40);
+
+        // when
+        var accepted = cancellationService.accept(paid.customerId(), paid.commissionId(),
+            request.getCancellationId(), null);
+
+        // then
+        // 40% of 50 001 = 20 000.4 -> 20 000; 40% of 5 000 = 2 000. The Artist keeps 30 001.
+        var refundId = openRefundId(paid);
+        var reconciliation = ledgerService.reconcile();
+        assertAll(
+            () -> assertThat(offered.getRefundPercent()).isEqualTo(40),
+            () -> assertThat(accepted.getRefundPercent()).isEqualTo(40),
+            () -> assertThat(commissionStatus(paid.commissionId())).isEqualTo("CANCELLED"),
+            () -> assertThat(requestStatus(refundId)).isEqualTo("APPROVED"),
+            () -> assertThat(jdbc.queryForObject("SELECT Amount FROM dbo.RefundTransfer WHERE RefundRequestId = ?",
+                BigDecimal.class, refundId)).isEqualByComparingTo("22000"),
+            () -> assertThat(releaseAmounts(paid.quoteId())).singleElement()
+                .satisfies(amount -> assertThat(amount).isEqualByComparingTo("30001")),
             () -> assertThat(reconciliation.getMismatches()).isEmpty()
         );
     }
@@ -161,11 +185,12 @@ class CommissionRefundPersistenceTest {
     @Test
     void refund_transfer_succeeded_posts_refund_paid_ok() {
         // given
-        var paid = cancelledPaidCommission();
+        var paid = paidCommission();
+        var request = cancellationService.request(paid.artistUserId(), paid.commissionId(), "I cannot finish it", 70);
         var refundId = openRefundId(paid);
-        commissionRefundService.setPercent(paid.artistUserId(), paid.commissionId(), refundId, 70);
-        var transferId = commissionRefundService.accept(paid.customerId(), paid.commissionId(), refundId)
-            .getTransfer().getTransferId();
+        cancellationService.accept(paid.customerId(), paid.commissionId(), request.getCancellationId(), null);
+        var transferId = jdbc.queryForObject("SELECT RefundTransferId FROM dbo.RefundTransfer "
+            + "WHERE RefundRequestId = ?", Long.class, refundId);
         var reference = "f20-test-" + UUID.randomUUID();
 
         // when
@@ -196,12 +221,12 @@ class CommissionRefundPersistenceTest {
     @Test
     void full_refund_voids_and_reconciles_ok() {
         // given
-        var paid = cancelledPaidCommission();
+        var paid = paidCommission();
+        var request = cancellationService.request(paid.artistUserId(), paid.commissionId(), "I am leaving", 100);
         var refundId = openRefundId(paid);
-        commissionRefundService.setPercent(paid.artistUserId(), paid.commissionId(), refundId, 100);
 
         // when
-        commissionRefundService.accept(paid.customerId(), paid.commissionId(), refundId);
+        cancellationService.accept(paid.customerId(), paid.commissionId(), request.getCancellationId(), null);
 
         // then
         var reconciliation = ledgerService.reconcile();
@@ -211,6 +236,65 @@ class CommissionRefundPersistenceTest {
             () -> assertThat(proceedsStatuses(paid.quoteId())).containsExactly("VOID"),
             () -> assertThat(releaseAmounts(paid.quoteId())).isEmpty(),
             () -> assertThat(artistBalance(paid.quoteId(), "ARTIST_HELD")).isEqualByComparingTo("0"),
+            () -> assertThat(reconciliation.getMismatches()).isEmpty()
+        );
+    }
+
+    @Test
+    void rejected_offer_keeps_held_and_reconciles_ok() {
+        // given
+        var paid = paidCommission();
+        var request = cancellationService.request(paid.artistUserId(), paid.commissionId(), "I cannot finish it", 10);
+        var refundId = openRefundId(paid);
+
+        // when
+        cancellationService.reject(paid.customerId(), paid.commissionId(), request.getCancellationId(),
+            "Ten percent breaks your terms");
+
+        // then
+        var reconciliation = ledgerService.reconcile();
+        assertAll(
+            () -> assertThat(commissionStatus(paid.commissionId())).isEqualTo("IN_PROGRESS"),
+            () -> assertThat(requestStatus(refundId)).isEqualTo("REJECTED"),
+            () -> assertThat(count("SELECT COUNT(*) FROM dbo.RefundTransfer WHERE RefundRequestId = ?", refundId))
+                .isZero(),
+            () -> assertThat(proceedsStatuses(paid.quoteId())).containsExactly("HELD"),
+            () -> assertThat(artistBalance(paid.quoteId(), "ARTIST_HELD")).isEqualByComparingTo("-50001"),
+            () -> assertThat(reconciliation.getMismatches()).isEmpty()
+        );
+    }
+
+    @Test
+    void dispute_cancel_refund_percentage_reconciles_ok() {
+        // given
+        var paid = paidCommission();
+        var dispute = disputeService.open(paid.customerId(), paid.commissionId(), "No progress for two weeks");
+        disputeService.review(adminId, dispute.getDisputeId());
+
+        // when
+        disputeService.resolve(adminId, dispute.getDisputeId(), DisputeResolution.builder()
+            .withOutcome(DisputeOutcome.CANCEL_REFUND)
+            .withReason("Only the sketch was delivered")
+            .withRefundPercent(40)
+            .build());
+
+        // then
+        var refund = jdbc.queryForMap("SELECT RefundRequestId, Status, RefundPercent, DecidedByStaffId "
+            + "FROM dbo.RefundRequest WHERE CommissionId = ?", paid.commissionId());
+        var refundId = ((Number) refund.get("RefundRequestId")).longValue();
+        var reconciliation = ledgerService.reconcile();
+        assertAll(
+            () -> assertThat(commissionStatus(paid.commissionId())).isEqualTo("CANCELLED"),
+            () -> assertThat(refund.get("Status")).isEqualTo("APPROVED"),
+            () -> assertThat(((Number) refund.get("RefundPercent")).intValue()).isEqualTo(40),
+            () -> assertThat(((Number) refund.get("DecidedByStaffId")).longValue()).isEqualTo(adminId),
+            () -> assertThat(jdbc.queryForObject("SELECT Amount FROM dbo.RefundTransfer WHERE RefundRequestId = ?",
+                BigDecimal.class, refundId)).isEqualByComparingTo("22000"),
+            () -> assertThat(releaseAmounts(paid.quoteId())).singleElement()
+                .satisfies(amount -> assertThat(amount).isEqualByComparingTo("30001")),
+            () -> assertThat(jdbc.queryForObject("SELECT Details FROM dbo.AdminAudit WHERE TargetType = "
+                + "'COMMISSION_DISPUTE' AND TargetId = ? AND ActionType = 'COMMISSION_DISPUTE_RESOLVED'", String.class,
+                dispute.getDisputeId())).endsWith(";refundPercent=40"),
             () -> assertThat(reconciliation.getMismatches()).isEmpty()
         );
     }
@@ -244,32 +328,32 @@ class CommissionRefundPersistenceTest {
     }
 
     @Test
-    void concurrent_accept_and_admin_decision_one_wins_ok() throws Exception {
+    void concurrent_accept_and_withdraw_one_wins_ok() throws Exception {
         // given
-        var paid = cancelledPaidCommission();
+        var paid = paidCommission();
+        var cancellationId = cancellationService.request(paid.artistUserId(), paid.commissionId(),
+            "I cannot finish it", 70).getCancellationId();
         var refundId = openRefundId(paid);
-        commissionRefundService.setPercent(paid.artistUserId(), paid.commissionId(), refundId, 70);
 
         // when
-        // The Customer's acceptance holds the Commission lock while the Admin's decision waits for it.
+        // The Customer's acceptance holds the Commission lock while the Artist's withdrawal waits for it.
         var race = race(
-            () -> attemptName(() -> commissionRefundService.accept(paid.customerId(), paid.commissionId(), refundId)),
-            () -> attemptName(() -> commissionRefundService.decide(adminId, refundId, CommissionRefundDecision.builder()
-                .withPercent(100)
-                .withReason("Nothing was delivered")
-                .build())));
+            () -> attemptName(() -> cancellationService.accept(paid.customerId(), paid.commissionId(), cancellationId,
+                null)),
+            () -> attemptName(() -> cancellationService.withdraw(paid.artistUserId(), paid.commissionId(),
+                cancellationId)));
 
         // then
         var reconciliation = ledgerService.reconcile();
         assertAll(
             () -> assertThat(race.blocked()).isTrue(),
             () -> assertThat(race.first()).isNull(),
-            () -> assertThat(race.second()).isEqualTo("REFUND_ALREADY_DECIDED"),
+            () -> assertThat(race.second()).isEqualTo("CANCELLATION_NOT_PENDING"),
+            () -> assertThat(commissionStatus(paid.commissionId())).isEqualTo("CANCELLED"),
+            () -> assertThat(requestStatus(refundId)).isEqualTo("APPROVED"),
             () -> assertThat(jdbc.queryForList("SELECT Amount FROM dbo.RefundTransfer WHERE RefundRequestId = ?",
                 BigDecimal.class, refundId)).singleElement()
                 .satisfies(amount -> assertThat(amount).isEqualByComparingTo("38501")),
-            () -> assertThat(count("SELECT COUNT(*) FROM dbo.AdminAudit WHERE ActionType = "
-                + "'COMMISSION_REFUND_DECIDED' AND TargetId = ?", refundId)).isZero(),
             () -> assertThat(reconciliation.getMismatches()).isEmpty()
         );
     }
@@ -277,8 +361,8 @@ class CommissionRefundPersistenceTest {
     @Test
     void one_open_refund_per_commission_ko() {
         // given
-        var paid = cancelledPaidCommission();
-        openRefundId(paid);
+        var paid = paidCommission();
+        cancellationService.request(paid.artistUserId(), paid.commissionId(), "I cannot finish it", 70);
 
         // when / then
         // UX_Refund_OpenCommission refuses a second open refund; the insert is rolled back either way.
@@ -291,7 +375,8 @@ class CommissionRefundPersistenceTest {
     @Test
     void refund_percent_check_constraint_ko() {
         // given
-        var paid = cancelledPaidCommission();
+        var paid = paidCommission();
+        cancellationService.request(paid.artistUserId(), paid.commissionId(), "I cannot finish it", 70);
         var refundId = openRefundId(paid);
 
         // when / then
@@ -299,7 +384,7 @@ class CommissionRefundPersistenceTest {
             + "WHERE RefundRequestId = ?", refundId)))
             .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(jdbc.queryForObject("SELECT RefundPercent FROM dbo.RefundRequest WHERE RefundRequestId = ?",
-            Integer.class, refundId)).isNull();
+            Integer.class, refundId)).isEqualTo(70);
     }
 
     // Runs the first action in a transaction held open until the second has had time to block on its lock.
@@ -324,20 +409,10 @@ class CommissionRefundPersistenceTest {
         }
     }
 
-    // A paid Commission whose cancellation the Artist accepted: its refund is open, awaiting the percentage.
-    private Accepted cancelledPaidCommission() {
-        var paid = paidCommission();
-        var request = cancellationService.request(paid.customerId(), paid.commissionId(), "Plans changed");
-        cancellationService.accept(paid.artistUserId(), paid.commissionId(), request.getCancellationId(), "Agreed");
-
-        return paid;
-    }
-
+    // The Commission's one refund: the offer while its cancellation is pending, the settlement once answered.
     private Long openRefundId(Accepted paid) {
-        List<CommissionRefund> refunds = commissionRefundService.list(paid.customerId(), paid.commissionId());
-        assertThat(refunds).singleElement().satisfies(refund -> assertThat(refund.getRefundPercent()).isNull());
-
-        return refunds.getFirst().getRefundRequestId();
+        return jdbc.queryForObject("SELECT TOP 1 RefundRequestId FROM dbo.RefundRequest WHERE CommissionId = ? "
+            + "ORDER BY RefundRequestId DESC", Long.class, paid.commissionId());
     }
 
     // The first installment is paid through the IPN, so the Commission is IN_PROGRESS.

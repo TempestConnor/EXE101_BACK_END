@@ -9,7 +9,9 @@ public interface CommissionCancellationService {
 
     List<CancellationRequest> list(Long userId, Long commissionId);
 
-    CancellationRequest request(Long userId, Long commissionId, String reason);
+    CancellationRequest request(Long userId, Long commissionId, String reason, Integer refundPercent);
+
+    CancellationRequest offerRefund(Long userId, Long commissionId, Long cancellationId, Integer refundPercent);
 
     CancellationRequest accept(Long userId, Long commissionId, Long cancellationId, String note);
 

@@ -9,8 +9,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-// The refund of a cancelled, paid Commission: a percentage of the held first payment, opened at the cancellation
-// (F20). An approved one has its transfer.
+// The refund of a paid Commission: the percentage of the held first payment the Artist offered with a cancellation,
+// or the Admin set at a dispute (F20). REQUESTED while the cancellation is pending; an approved one has its transfer.
 @Getter
 @Setter
 @NoArgsConstructor
@@ -20,7 +20,6 @@ public class CommissionRefund {
     private Long refundRequestId;
     private Long commissionId;
     private RefundStatus status;
-    private CommissionRefundStage stage;
     private Integer refundPercent;
     private String reason;
     private OffsetDateTime requestedAt;

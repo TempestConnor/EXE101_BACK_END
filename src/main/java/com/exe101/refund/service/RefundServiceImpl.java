@@ -2,7 +2,6 @@ package com.exe101.refund.service;
 
 import com.exe101.audit.model.AuditEntry;
 import com.exe101.audit.service.AuditService;
-import com.exe101.commission.service.CommissionPaymentService;
 import com.exe101.common.error.AppErrorMessage;
 import com.exe101.common.error.AppException;
 import com.exe101.common.persistence.DatabaseErrors;
@@ -87,7 +86,6 @@ public class RefundServiceImpl implements RefundService {
     private final EntitlementService entitlementService;
     private final LedgerService ledgerService;
     private final AuditService auditService;
-    private final CommissionPaymentService commissionPaymentService;
 
     // §16.1, amendment §C.9: the buyer asks for a whole physical item back, before delivery or within the return
     // window after it. The Order is locked first, as the window close locks it, so a request and the grant at the
@@ -211,7 +209,7 @@ public class RefundServiceImpl implements RefundService {
         if (target == TransferStatus.SUCCEEDED) {
             // A Commission refund names the Quote its installment paid, as its approval did.
             Long quoteId = request.getCommissionId() == null ? null
-                : commissionPaymentService.findQuoteId(saved.getPaymentId()).orElseThrow();
+                : ledgerService.findRefundQuoteId(request.getRefundRequestId()).orElseThrow();
             ledgerService.recordRefundPaid(RefundMovement.builder()
                 .withSourceId(transferId)
                 .withOrderItemId(request.getOrderItemId())
@@ -230,17 +228,20 @@ public class RefundServiceImpl implements RefundService {
         return refunds(List.of(request)).getFirst();
     }
 
-    // F20: a paid Commission's refund is opened when it is cancelled, for its Customer, without being asked for
-    // (approved 2 November 2026). The caller holds the Commission lock; UX_Refund_OpenCommission allows one open or
-    // completed refund per Commission.
+    // F20: a paid Commission's refund is the percentage the Artist offers with a cancellation, for its Customer
+    // (approved 2 November 2026). It stays REQUESTED until the cancellation is accepted, rejected or withdrawn. The
+    // caller holds the Commission lock; UX_Refund_OpenCommission allows one open or completed refund per Commission.
     @Override
-    public Refund openForCommission(Long commissionId, Long customerId, String reason, OffsetDateTime openedAt) {
+    public Refund openForCommission(
+        Long commissionId, Long customerId, String reason, Integer percent, OffsetDateTime openedAt
+    ) {
         Refund refund = Refund.builder()
             .withCommissionId(commissionId)
             .withRequestedByUserId(customerId)
             .withReason(reason)
             .withStatus(RefundStatus.REQUESTED)
             .withRequestedAt(openedAt)
+            .withRefundPercent(percent)
             .build();
         RefundRequest saved = saveRequest(mapper.toEntity(refund));
         log.info("[REFUND] - ACTION: openForCommission: commissionId: {}: refundRequestId: {}", commissionId,
@@ -265,26 +266,26 @@ public class RefundServiceImpl implements RefundService {
         return refunds(entities);
     }
 
+    // Taken after the Commission lock: the offer of the Commission's pending cancellation, if any.
     @Override
-    @Transactional(readOnly = true)
-    public Optional<Long> findCommissionId(Long refundRequestId) {
-        return repository.findCommissionIdByRefundRequestId(refundRequestId);
+    public Optional<Refund> findOpenForCommission(Long commissionId) {
+        return repository.findWithLockByCommissionIdAndStatus(commissionId, RefundStatus.REQUESTED.name())
+            .map(mapper::toModel);
     }
 
-    // Taken after the Commission lock; a request of another Commission does not exist here.
+    // A rejected or withdrawn cancellation takes its offer with it; the row stays as the history of the offer.
     @Override
-    public Refund findLockedForCommission(Long commissionId, Long refundRequestId) {
-        RefundRequest entity = repository.findWithLockByRefundRequestId(refundRequestId)
-            .filter(found -> commissionId.equals(found.getCommissionId()))
-            .orElseThrow(() -> new AppException(AppErrorMessage.REFUND_REQUEST_NOT_FOUND));
-
-        return refunds(List.of(entity)).getFirst();
-    }
-
-    @Override
-    public Refund recordPercent(Long refundRequestId, Integer percent) {
+    public Refund closeCommissionOffer(Long refundRequestId, String reason, OffsetDateTime closedAt) {
         RefundRequest entity = repository.findWithLockByRefundRequestId(refundRequestId).orElseThrow();
-        entity.setRefundPercent(percent);
+
+        if (!RefundStatus.REQUESTED.name().equals(entity.getStatus())) {
+            throw new IllegalStateException("Refund offer already decided: " + refundRequestId);
+        }
+
+        entity.setStatus(RefundStatus.REJECTED.name());
+        entity.setDecidedAt(closedAt);
+        entity.setDecisionReason(reason);
+        log.info("[REFUND] - ACTION: closeCommissionOffer: refundRequestId: {}", refundRequestId);
 
         return mapper.toModel(repository.saveAndFlush(entity));
     }

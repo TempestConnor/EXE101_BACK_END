@@ -5,8 +5,10 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+// refundPercent is required with CANCEL_REFUND and refused with the other outcomes.
 public record ResolveDisputeDTO(
     @NotNull @Pattern(regexp = "CONTINUE|CANCEL_REFUND|CANCEL_NO_REFUND") String outcome,
-    @NotBlank @Size(max = 2000) String reason
+    @NotBlank @Size(max = 2000) String reason,
+    Integer refundPercent
 ) {
 }

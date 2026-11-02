@@ -62,6 +62,8 @@ class CommissionPaymentServiceTest {
     private CancellationRequestRepository cancellationRepository;
     @Mock
     private ArtistService artistService;
+    @Mock
+    private CommissionRefundService refundService;
     @InjectMocks
     private CommissionPaymentServiceImpl service;
 
@@ -498,6 +500,33 @@ class CommissionPaymentServiceTest {
             () -> assertThat(event.getValue().getActorUserId()).isEqualTo(customerId)
         );
         verify(quoteRepository).saveAndFlush(quote);
+    }
+
+    @Test
+    void final_payment_closes_pending_offer_ok() {
+        // given
+        // The Artist asked to cancel with a refund offer after the Customer opened the final payment page.
+        givenCommission("AWAITING_PAYMENT");
+        givenQuote("ACCEPTED", "100001.0000", "10001.0000");
+        givenPayment("SUCCEEDED", "55002.0000");
+        givenFinalSettling("PENDING", "55000.0000");
+        var request = new com.exe101.entity.CancellationRequest(commissionId, artistUserId, "Leaving the team",
+            "PENDING", now());
+        request.setCancellationId(81L);
+        when(cancellationRepository.findByCommissionIdAndStatus(commissionId, "PENDING"))
+            .thenReturn(Optional.of(request));
+        var receivedAt = now();
+
+        // when
+        var result = service.settlePayment(finalPaymentId, new BigDecimal("55000"), receivedAt);
+
+        // then
+        assertAll(
+            () -> assertThat(result.isCompleted()).isTrue(),
+            () -> assertThat(request.getStatus()).isEqualTo("REJECTED"),
+            () -> assertThat(request.getResolvedAt()).isEqualTo(receivedAt)
+        );
+        verify(refundService).closeOffer(commissionId, "The final payment completed the Commission.", receivedAt);
     }
 
     @Test
