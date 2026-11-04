@@ -39,6 +39,11 @@ variables with the same names still take precedence. The JSON file is loaded onl
 `scripts/dev.ps1`. Artwork preview images are stored under `STORAGE_ROOT`
 (default `.local/storage`).
 
+A storefront on another origin (its own domain, or `http://localhost:3000` calling `:8080` directly) needs that
+origin in `CORS_ALLOWED_ORIGINS`, comma-separated exact origins such as
+`https://shop.example.com,http://localhost:3000`. Wildcards are refused at startup. Leave it empty when the
+storefront reaches the API through the same origin, such as a reverse proxy or the Vite dev proxy.
+
 To build without connecting to SQL Server:
 
 ```powershell

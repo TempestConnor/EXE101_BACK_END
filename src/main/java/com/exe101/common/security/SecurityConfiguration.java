@@ -4,9 +4,11 @@ import com.exe101.customer.security.CustomerAuthenticationConverter;
 import com.exe101.customer.security.CustomerTokenIssuer;
 import com.exe101.staff.security.StaffAuthenticationConverter;
 import com.exe101.staff.security.StaffTokenIssuer;
+import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.convert.converter.Converter;
@@ -14,6 +16,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -26,12 +29,40 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.oauth2.server.resource.authentication.JwtIssuerAuthenticationManagerResolver;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @EnableMethodSecurity
 @EnableWebSecurity
+@EnableConfigurationProperties(CorsProperties.class)
 public class SecurityConfiguration {
+    private static List<String> corsMethods = List.of("GET", "POST", "PUT", "DELETE");
+    private static List<String> corsHeaders = List.of("Authorization", "Content-Type");
+    private static long corsMaxAgeSeconds = 3600;
+
+    // Registered only when origins are configured. With none, no request is treated as cross-origin, exactly as
+    // before: a dev proxy that forwards the browser's Origin header keeps working. Bearer tokens travel in a
+    // header, never in cookies, so credentials stay off.
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource(CorsProperties properties) {
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+
+        if (!properties.allowedOrigins().isEmpty()) {
+            CorsConfiguration configuration = new CorsConfiguration();
+            configuration.setAllowedOrigins(properties.allowedOrigins());
+            configuration.setAllowedMethods(corsMethods);
+            configuration.setAllowedHeaders(corsHeaders);
+            configuration.setAllowCredentials(false);
+            configuration.setMaxAge(corsMaxAgeSeconds);
+            source.registerCorsConfiguration("/**", configuration);
+        }
+
+        return source;
+    }
+
     @Bean
     public SecurityFilterChain apiSecurity(
         HttpSecurity http, SecurityProblemHandler problems,
@@ -44,7 +75,9 @@ public class SecurityConfiguration {
             StaffTokenIssuer.issuer, manager(staffDecoder, staffConverter));
         JwtIssuerAuthenticationManagerResolver resolver = new JwtIssuerAuthenticationManagerResolver(managers::get);
 
-        http.csrf(AbstractHttpConfigurer::disable)
+        // CORS runs before authorization, so an allowed preflight is answered without reaching denyAll().
+        http.cors(Customizer.withDefaults())
+            .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .requestCache(AbstractHttpConfigurer::disable)
             .formLogin(AbstractHttpConfigurer::disable)
