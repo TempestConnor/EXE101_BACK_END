@@ -21,6 +21,13 @@ public interface FulfillmentEntityMapper {
     @Mapping(source = "trackingReference", target = "withTrackingReference")
     @Mapping(source = "deliveredAt", target = "withDeliveredAt")
     @Mapping(source = "updatedAt", target = "withUpdatedAt")
+    // The Order snapshot details live on other tables; the service adds them where they are shown.
+    @Mapping(target = "withOrderId", ignore = true)
+    @Mapping(target = "withArtworkTitle", ignore = true)
+    @Mapping(target = "withListingName", ignore = true)
+    @Mapping(target = "withSpecifications", ignore = true)
+    @Mapping(target = "withQuantity", ignore = true)
+    @Mapping(target = "withShippingAddress", ignore = true)
     Fulfillment toModel(PhysicalFulfillment entity);
 
     @Mapping(target = "eventId", ignore = true)

@@ -65,6 +65,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -519,6 +520,47 @@ class OrderServiceTest {
 
         // then
         assertThat(result).extracting("orderId").containsExactly(302L, 301L);
+    }
+
+    @Test
+    void list_shippable_ok() {
+        // given
+        // The Order also holds a digital item, which is not asked for; an unknown item ID finds nothing.
+        givenCart(cartItem(digitalId, 1), cartItem(physicalId, 2));
+        givenListings(digital(digitalId, "50005", artistAUserId), physical(physicalId, artistBUserId));
+        givenSupportedAddress();
+        service.create(buyerId, commit(addressId, "327006", line(digitalId, 1, "50005"),
+            line(physicalId, 2, "110000")));
+        var orderId = savedOrder().getOrderId();
+        var physicalItem = savedItems.stream().filter(item -> item.getListingId() == physicalId).findFirst()
+            .orElseThrow();
+        when(itemRepository.findAllById(any())).thenAnswer(invocation -> {
+            Iterable<Long> ids = invocation.getArgument(0);
+            var wanted = new ArrayList<Long>();
+            ids.forEach(wanted::add);
+            return savedItems.stream().filter(item -> wanted.contains(item.getOrderItemId())).toList();
+        });
+        clearInvocations(itemRepository, orderRepository);
+
+        // when
+        var result = service.listShippable(List.of(physicalItem.getOrderItemId(), 999L));
+
+        // then
+        var found = result.getFirst();
+        assertAll(
+            () -> assertThat(result).hasSize(1),
+            () -> assertThat(found.getOrderItemId()).isEqualTo(physicalItem.getOrderItemId()),
+            () -> assertThat(found.getOrderId()).isEqualTo(orderId),
+            () -> assertThat(found.getListingName()).isEqualTo(physicalItem.getListingName()),
+            () -> assertThat(found.getSpecifications()).isEqualTo(a4Specifications),
+            () -> assertThat(found.getQuantity()).isEqualTo(2),
+            () -> assertThat(found.getShippingAddress().getRecipientName()).isEqualTo("Nguyễn Văn A"),
+            () -> assertThat(found.getShippingAddress().getProvinceName()).isEqualTo("Hà Nội")
+        );
+        // Only the asked-for items are read, never whole Orders.
+        verify(itemRepository).findAllById(List.of(physicalItem.getOrderItemId(), 999L));
+        verify(itemRepository, never()).findByOrderIdInOrderByOrderItemIdAsc(anyCollection());
+        verify(orderRepository, never()).findAllById(any());
     }
 
     @Test

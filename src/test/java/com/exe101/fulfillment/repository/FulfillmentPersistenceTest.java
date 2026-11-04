@@ -248,6 +248,42 @@ class FulfillmentPersistenceTest {
         );
     }
 
+    @Test
+    void list_reads_shipping_snapshot_ok() throws Exception {
+        // given
+        // The snapshot is written before payment, as Order creation does; it can never be changed afterwards.
+        var physical = listingAsset("PHYSICAL");
+        var orderId = pendingOrder("110000", 30);
+        var itemId = physicalItem(orderId, physical);
+        jdbc.update("INSERT INTO dbo.OrderShippingAddress (OrderId, RecipientName, Phone, Line1, Ward, District,"
+                + " ProvinceCode, ProvinceName, CountryCode) VALUES (?, ?, ?, ?, ?, ?, '01', ?, 'VN')", orderId,
+            "Nguyễn Văn A", "0912345678", "1 Tràng Tiền", "Tràng Tiền", "Hoàn Kiếm", "Hà Nội");
+        var ref = attemptRef(paymentService.start(buyerId, orderId, "203.0.113.7").getAttemptId());
+        paymentService.handleVnpayNotification(success(ref, "11000000"));
+
+        // when
+        var rows = fulfillmentService.list(FulfillmentStatus.PENDING);
+
+        // then
+        var row = rows.stream().filter(fulfillment -> fulfillment.getOrderItemId().equals(itemId)).findFirst()
+            .orElseThrow();
+        var address = row.getShippingAddress();
+        assertAll(
+            () -> assertThat(row.getOrderId()).isEqualTo(orderId),
+            () -> assertThat(row.getArtworkTitle()).isEqualTo("Sunset"),
+            () -> assertThat(row.getListingName()).isEqualTo("Sunset A4 print"),
+            () -> assertThat(row.getSpecifications()).isEqualTo(a4Specifications),
+            () -> assertThat(row.getQuantity()).isEqualTo(1),
+            () -> assertThat(address.getRecipientName()).isEqualTo("Nguyễn Văn A"),
+            () -> assertThat(address.getPhone()).isEqualTo("0912345678"),
+            () -> assertThat(address.getLine1()).isEqualTo("1 Tràng Tiền"),
+            () -> assertThat(address.getWard()).isEqualTo("Tràng Tiền"),
+            () -> assertThat(address.getDistrict()).isEqualTo("Hoàn Kiếm"),
+            () -> assertThat(address.getProvinceName()).isEqualTo("Hà Nội"),
+            () -> assertThat(address.getCountryCode()).isEqualTo("VN")
+        );
+    }
+
     private Long registerUser() {
         return customerService.register(new CustomerRegistration(
             "f13-test-" + UUID.randomUUID() + "@example.invalid", "long-password", "Buyer")).getUserId();

@@ -1,5 +1,6 @@
 package com.exe101.fulfillment.service;
 
+import com.exe101.address.model.ShippingAddress;
 import com.exe101.common.error.AppErrorMessage;
 import com.exe101.common.error.AppException;
 import com.exe101.entitlement.model.Entitlement;
@@ -8,6 +9,7 @@ import com.exe101.entity.FulfillmentEvent;
 import com.exe101.entity.PhysicalFulfillment;
 import com.exe101.fulfillment.config.FulfillmentProperties;
 import com.exe101.fulfillment.mapper.FulfillmentEntityMapperImpl;
+import com.exe101.fulfillment.model.Fulfillment;
 import com.exe101.fulfillment.model.FulfillmentChange;
 import com.exe101.fulfillment.model.FulfillmentStatus;
 import com.exe101.fulfillment.repository.FulfillmentEventRepository;
@@ -17,12 +19,14 @@ import com.exe101.listing.model.ListingType;
 import com.exe101.order.model.Order;
 import com.exe101.order.model.OrderLine;
 import com.exe101.order.model.OrderStatus;
+import com.exe101.order.model.ShippableItem;
 import com.exe101.order.service.OrderService;
 import com.exe101.proceeds.service.ProceedsService;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,6 +41,7 @@ import org.mockito.quality.Strictness;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -54,6 +59,7 @@ class FulfillmentServiceTest {
     private static long digitalItemId = 310L;
     private static long physicalItemId = 311L;
     private static long otherPhysicalItemId = 312L;
+    private static String a4Specifications = "Fine-art print, A4 (210 x 297 mm), 230 gsm matte paper";
     @Mock
     private FulfillmentRepository repository;
     @Mock
@@ -86,6 +92,11 @@ class FulfillmentServiceTest {
             FulfillmentEvent saved = invocation.getArgument(0);
             savedEvents.add(saved);
             return saved;
+        });
+        // Every fulfilled item has its snapshot; tests that check it stub their own.
+        when(orderService.listShippable(any())).thenAnswer(invocation -> {
+            Collection<Long> ids = invocation.getArgument(0);
+            return ids.stream().map(id -> shippable(id, orderId, "Nguyễn Văn A")).toList();
         });
     }
 
@@ -319,6 +330,90 @@ class FulfillmentServiceTest {
     }
 
     @Test
+    void advance_returns_item_and_shipping_ok() {
+        // given
+        lockedOrder(OrderStatus.PAID);
+        locked(physicalItemId, "PENDING");
+        var item = shippable(physicalItemId, orderId, "Trần Thị B");
+        when(orderService.listShippable(List.of(physicalItemId))).thenReturn(List.of(item));
+
+        // when
+        var updated = service.advance(staffId, physicalItemId, change(FulfillmentStatus.IN_PRODUCTION, null, null));
+
+        // then
+        assertAll(
+            () -> assertThat(updated.getOrderId()).isEqualTo(orderId),
+            () -> assertThat(updated.getListingName()).isEqualTo("Sunset A4 print " + physicalItemId),
+            () -> assertThat(updated.getQuantity()).isEqualTo(2),
+            () -> assertThat(updated.getShippingAddress()).isSameAs(item.getShippingAddress())
+        );
+    }
+
+    @Test
+    void list_includes_item_and_shipping_ok() {
+        // given
+        when(repository.findAllByOrderByUpdatedAtDescOrderItemIdDesc())
+            .thenReturn(List.of(stored(physicalItemId, "IN_PRODUCTION")));
+        when(orderService.listShippable(List.of(physicalItemId)))
+            .thenReturn(List.of(shippable(physicalItemId, orderId, "Nguyễn Văn A")));
+
+        // when
+        var result = service.list(null);
+
+        // then
+        var row = result.getFirst();
+        assertAll(
+            () -> assertThat(result).hasSize(1),
+            () -> assertThat(row.getOrderItemId()).isEqualTo(physicalItemId),
+            () -> assertThat(row.getStatus()).isEqualTo(FulfillmentStatus.IN_PRODUCTION),
+            () -> assertThat(row.getOrderId()).isEqualTo(orderId),
+            () -> assertThat(row.getArtworkTitle()).isEqualTo("Sunset"),
+            () -> assertThat(row.getListingName()).isEqualTo("Sunset A4 print " + physicalItemId),
+            () -> assertThat(row.getSpecifications()).isEqualTo(a4Specifications),
+            () -> assertThat(row.getQuantity()).isEqualTo(2),
+            () -> assertThat(row.getShippingAddress().getRecipientName()).isEqualTo("Nguyễn Văn A"),
+            () -> assertThat(row.getShippingAddress().getLine1()).isEqualTo("1 Tràng Tiền"),
+            () -> assertThat(row.getShippingAddress().getPhone()).isEqualTo("0912345678")
+        );
+    }
+
+    @Test
+    void list_items_from_two_orders_ok() {
+        // given
+        // Most recently changed first: the other Order's item, then this Order's; the snapshots come back the
+        // other way.
+        var otherOrderId = 400L;
+        var otherItemId = 411L;
+        when(repository.findByStatusOrderByUpdatedAtDescOrderItemIdDesc("PENDING"))
+            .thenReturn(List.of(stored(otherItemId, "PENDING"), stored(physicalItemId, "PENDING")));
+        when(orderService.listShippable(List.of(otherItemId, physicalItemId))).thenReturn(List.of(
+            shippable(physicalItemId, orderId, "Nguyễn Văn A"), shippable(otherItemId, otherOrderId, "Trần Thị B")));
+
+        // when
+        var result = service.list(FulfillmentStatus.PENDING);
+
+        // then
+        assertThat(result)
+            .extracting(Fulfillment::getOrderItemId, Fulfillment::getOrderId,
+                row -> row.getShippingAddress().getRecipientName())
+            .containsExactly(tuple(otherItemId, otherOrderId, "Trần Thị B"),
+                tuple(physicalItemId, orderId, "Nguyễn Văn A"));
+    }
+
+    @Test
+    void list_empty_ok() {
+        // given
+        when(repository.findByStatusOrderByUpdatedAtDescOrderItemIdDesc("SHIPPED")).thenReturn(List.of());
+
+        // when
+        var result = service.list(FulfillmentStatus.SHIPPED);
+
+        // then
+        assertThat(result).isEmpty();
+        verifyNoInteractions(orderService);
+    }
+
+    @Test
     void window_closed_grants_ok() {
         // given
         var order = lockedOrder(OrderStatus.PAID);
@@ -431,11 +526,35 @@ class FulfillmentServiceTest {
     }
 
     private PhysicalFulfillment locked(long orderItemId, String status) {
-        var entity = new PhysicalFulfillment(orderItemId, "PHYSICAL", status, null, null, null, now().minusDays(1),
-            new byte[] {0, 0, 0, 0, 0, 0, 0, 1});
+        var entity = stored(orderItemId, status);
         when(repository.findWithLockByOrderItemId(orderItemId)).thenReturn(Optional.of(entity));
 
         return entity;
+    }
+
+    private PhysicalFulfillment stored(long orderItemId, String status) {
+        return new PhysicalFulfillment(orderItemId, "PHYSICAL", status, null, null, null, now().minusDays(1),
+            new byte[] {0, 0, 0, 0, 0, 0, 0, 1});
+    }
+
+    // A physical item's snapshot and the address its Order is to be shipped to.
+    private ShippableItem shippable(long orderItemId, long id, String recipientName) {
+        return ShippableItem.builder()
+            .withOrderItemId(orderItemId)
+            .withOrderId(id)
+            .withArtworkTitle("Sunset")
+            .withListingName("Sunset A4 print " + orderItemId)
+            .withSpecifications(a4Specifications)
+            .withQuantity(2)
+            .withShippingAddress(ShippingAddress.builder()
+                .withRecipientName(recipientName)
+                .withPhone("0912345678")
+                .withLine1("1 Tràng Tiền")
+                .withProvinceCode("01")
+                .withProvinceName("Hà Nội")
+                .withCountryCode("VN")
+                .build())
+            .build();
     }
 
     private PhysicalFulfillment lockedDelivered(long orderItemId, OffsetDateTime deliveredAt) {

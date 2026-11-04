@@ -1,5 +1,6 @@
 package com.exe101.fulfillment.controller;
 
+import com.exe101.address.model.ShippingAddress;
 import com.exe101.common.error.AppErrorMessage;
 import com.exe101.common.error.AppException;
 import com.exe101.common.error.GlobalExceptionHandler;
@@ -150,6 +151,45 @@ class FulfillmentAdminControllerTest {
             .andExpect(jsonPath("$[0].orderItemId").value(311))
             .andExpect(jsonPath("$[0].status").value("SHIPPED"));
         verify(fulfillments).list(FulfillmentStatus.SHIPPED);
+    }
+
+    @Test
+    void list_returns_item_and_shipping_ok() throws Exception {
+        // given
+        var token = adminToken();
+        var row = fulfillment(FulfillmentStatus.IN_PRODUCTION);
+        row.setOrderId(300L);
+        row.setArtworkTitle("Sunset");
+        row.setListingName("Sunset A4 print");
+        row.setSpecifications("Fine-art print, A4");
+        row.setQuantity(2);
+        row.setShippingAddress(ShippingAddress.builder()
+            .withSourceAddressId(9L)
+            .withRecipientName("Nguyễn Văn A")
+            .withPhone("0912345678")
+            .withLine1("1 Tràng Tiền")
+            .withProvinceCode("01")
+            .withProvinceName("Hà Nội")
+            .withCountryCode("VN")
+            .build());
+        when(fulfillments.list(null)).thenReturn(List.of(row));
+
+        // when / then
+        // The address is the Order's snapshot; the address-book ID it was copied from is not shown.
+        mvc.perform(get("/admin/fulfillments").header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].orderItemId").value(311))
+            .andExpect(jsonPath("$[0].orderId").value(300))
+            .andExpect(jsonPath("$[0].artworkTitle").value("Sunset"))
+            .andExpect(jsonPath("$[0].listingName").value("Sunset A4 print"))
+            .andExpect(jsonPath("$[0].specifications").value("Fine-art print, A4"))
+            .andExpect(jsonPath("$[0].quantity").value(2))
+            .andExpect(jsonPath("$[0].shippingAddress.recipientName").value("Nguyễn Văn A"))
+            .andExpect(jsonPath("$[0].shippingAddress.phone").value("0912345678"))
+            .andExpect(jsonPath("$[0].shippingAddress.line1").value("1 Tràng Tiền"))
+            .andExpect(jsonPath("$[0].shippingAddress.provinceName").value("Hà Nội"))
+            .andExpect(jsonPath("$[0].shippingAddress.countryCode").value("VN"))
+            .andExpect(jsonPath("$[0].shippingAddress.sourceAddressId").doesNotExist());
     }
 
     private Fulfillment fulfillment(FulfillmentStatus status) {

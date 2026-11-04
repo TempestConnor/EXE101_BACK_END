@@ -16,6 +16,7 @@ import com.exe101.fulfillment.repository.ReturnRequestRepository;
 import com.exe101.listing.model.ListingType;
 import com.exe101.order.model.Order;
 import com.exe101.order.model.OrderStatus;
+import com.exe101.order.model.ShippableItem;
 import com.exe101.order.service.OrderService;
 import com.exe101.proceeds.service.ProceedsService;
 import java.time.OffsetDateTime;
@@ -23,6 +24,8 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -75,7 +78,17 @@ public class FulfillmentServiceImpl implements FulfillmentService {
             ? repository.findAllByOrderByUpdatedAtDescOrderItemIdDesc()
             : repository.findByStatusOrderByUpdatedAtDescOrderItemIdDesc(status.name());
 
-        return entities.stream().map(mapper::toModel).toList();
+        if (entities.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> itemIds = entities.stream().map(PhysicalFulfillment::getOrderItemId).toList();
+        Map<Long, ShippableItem> shippable = orderService.listShippable(itemIds).stream()
+            .collect(Collectors.toMap(ShippableItem::getOrderItemId, Function.identity()));
+
+        return entities.stream()
+            .map(entity -> describe(mapper.toModel(entity), shippable.get(entity.getOrderItemId())))
+            .toList();
     }
 
     // Request checks come first, so a bad request locks nothing. Then the Order is locked before its item, the
@@ -131,7 +144,10 @@ public class FulfillmentServiceImpl implements FulfillmentService {
         log.info("[FULFILLMENT] - ACTION: advance: staffId: {}: orderItemId: {}: status: {}", staffId, orderItemId,
             target);
 
-        return mapper.toModel(saved);
+        // Read the same way as the list; the snapshots are immutable, so the Order lock is not needed for them.
+        ShippableItem shippable = orderService.listShippable(List.of(orderItemId)).stream().findFirst().orElse(null);
+
+        return describe(mapper.toModel(saved), shippable);
     }
 
     @Override
@@ -229,6 +245,23 @@ public class FulfillmentServiceImpl implements FulfillmentService {
             .withActorStaffId(staffId)
             .build();
         eventRepository.saveAndFlush(mapper.toEntity(step));
+    }
+
+    // Adds what to make and where to send it, from the Order's snapshots. Every fulfillment row belongs to an
+    // Order Item (foreign key), so a missing item is a broken invariant, not a client error.
+    private Fulfillment describe(Fulfillment fulfillment, ShippableItem item) {
+        if (item == null) {
+            throw new IllegalStateException("Fulfillment has no Order Item: " + fulfillment.getOrderItemId());
+        }
+
+        fulfillment.setOrderId(item.getOrderId());
+        fulfillment.setArtworkTitle(item.getArtworkTitle());
+        fulfillment.setListingName(item.getListingName());
+        fulfillment.setSpecifications(item.getSpecifications());
+        fulfillment.setQuantity(item.getQuantity());
+        fulfillment.setShippingAddress(item.getShippingAddress());
+
+        return fulfillment;
     }
 
     // A physical item of an unpaid Order has not started; a digital or unknown item has no fulfillment at all.

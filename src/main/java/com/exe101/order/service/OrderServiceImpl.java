@@ -32,6 +32,7 @@ import com.exe101.order.model.OrderStatus;
 import com.exe101.order.model.PaymentSettlement;
 import com.exe101.order.model.PaymentStatus;
 import com.exe101.order.model.PaymentTarget;
+import com.exe101.order.model.ShippableItem;
 import com.exe101.order.repository.ItemFulfillmentRepository;
 import com.exe101.order.repository.ItemRefundRepository;
 import com.exe101.order.repository.OrderItemAssetRepository;
@@ -42,6 +43,8 @@ import com.exe101.order.repository.PaymentRepository;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -62,6 +65,7 @@ public class OrderServiceImpl implements OrderService {
     private static String currencyCode = "VND";
     private static int moneyScale = 4;
     private static int rateScale = 6;
+    private static int lookupChunkSize = 1000;
     private final OrderRepository orderRepository;
     private final OrderItemRepository itemRepository;
     private final OrderItemAssetRepository assetRepository;
@@ -248,6 +252,36 @@ public class OrderServiceImpl implements OrderService {
         return itemRepository.findById(orderItemId)
             .flatMap(item -> orderRepository.findWithLockByOrderId(item.getOrderId()))
             .map(entity -> assemble(List.of(entity)).getFirst());
+    }
+
+    // Read without locks, for the Admin who fulfills the items: only the asked-for items and their Orders' shipping
+    // snapshots, never whole Orders, so no query takes more parameters than one chunk of item IDs, however many
+    // lines an Order has (SQL Server takes at most 2100). Unknown item IDs are skipped.
+    @Override
+    @Transactional(readOnly = true)
+    public List<ShippableItem> listShippable(Collection<Long> orderItemIds) {
+        List<Long> itemIds = orderItemIds.stream().distinct().toList();
+        List<ShippableItem> shippable = new ArrayList<>();
+
+        for (int start = 0; start < itemIds.size(); start += lookupChunkSize) {
+            List<OrderItem> items = itemRepository.findAllById(
+                itemIds.subList(start, Math.min(start + lookupChunkSize, itemIds.size())));
+            List<Long> orderIds = items.stream().map(OrderItem::getOrderId).distinct().toList();
+            Map<Long, ShippingAddress> shipping = orderIds.isEmpty() ? Map.of() : shippingRepository
+                .findByOrderIdIn(orderIds).stream()
+                .collect(Collectors.toMap(OrderShippingAddress::getOrderId, mapper::toModel));
+            items.forEach(item -> shippable.add(ShippableItem.builder()
+                .withOrderItemId(item.getOrderItemId())
+                .withOrderId(item.getOrderId())
+                .withArtworkTitle(item.getArtworkTitle())
+                .withListingName(item.getListingName())
+                .withSpecifications(item.getSpecifications())
+                .withQuantity(item.getQuantity())
+                .withShippingAddress(shipping.get(item.getOrderId()))
+                .build()));
+        }
+
+        return shippable;
     }
 
     // The Cart version was checked when the Cart was claimed. Lines, quantities and unit prices must equal the

@@ -38,8 +38,14 @@ Decisions recorded 1 November 2026 for the F13 increment.
 
 | Method and path | Role | Result |
 | --- | --- | --- |
-| `GET /admin/fulfillments?status=` | Admin | `[{orderItemId, status, carrier, trackingReference, deliveredAt, updatedAt}]`, most recently changed first; all items without `status` |
-| `POST /admin/fulfillments/{orderItemId}/transitions` | Admin | Body `{status, carrier?, trackingReference?, reason?}` → the updated fulfillment |
+| `GET /admin/fulfillments?status=` | Admin | `[{orderItemId, orderId, status, carrier, trackingReference, deliveredAt, updatedAt, artworkTitle, listingName, specifications, quantity, shippingAddress}]`, most recently changed first; all items without `status` |
+| `POST /admin/fulfillments/{orderItemId}/transitions` | Admin | Body `{status, carrier?, trackingReference?, reason?}` → the updated fulfillment, same shape |
+
+What to make and where to send it (added 5 November 2026, from the frontend integration report): the item fields
+and `shippingAddress` (`recipientName, phone, line1, line2, ward, district, provinceCode, provinceName, postalCode,
+countryCode`) come from the Order's immutable snapshots, so later edits to the Customer's address book do not change
+them. No prices, costs, proceeds or the Customer's email are included. The recipient's details are personal data
+and are not logged.
 
 Order items in `GET /orders/{orderId}` carry `fulfillment: {status, carrier, trackingReference, deliveredAt}`,
 `null` for digital items.
@@ -61,6 +67,12 @@ status), `403` for non-Admin tokens.
 `CuratedArtworkMarketplace_Test`, selected by `TEST_DB_URL` (see [Payment](payment.md#tests)).
 
 ## Known limits
+
+- The Admin list is not paged and returns every matching item. Its details are read for the listed items only
+  (never whole Orders), in chunks of 1000 item IDs, so no query reaches SQL Server's 2100-parameter limit however
+  many lines an Order has. Paging, when added, needs a decision on the list format shared by every list endpoint,
+  and should use a cursor rather than an offset: advancing an item moves it out of a status filter, which would make
+  offset pages skip items.
 
 - The proceeds release at the same window close is added by F14 ([Artist proceeds](artist-proceeds.md)).
 - Return requests and the refund route are F15 ([Refunds](refunds.md)): an approved refund sets an undelivered item
