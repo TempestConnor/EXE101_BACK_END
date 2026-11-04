@@ -1,0 +1,4 @@
+# The Maven Wrapper script runs under sh on macOS/Linux, which fails on CRLF line endings, whatever core.autocrlf
+# a Windows checkout uses. The Windows scripts keep CRLF.
+mvnw text eol=lf
+*.cmd text eol=crlf
