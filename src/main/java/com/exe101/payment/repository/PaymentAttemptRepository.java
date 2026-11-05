@@ -10,4 +10,7 @@ public interface PaymentAttemptRepository extends JpaRepository<PaymentAttempt, 
     // UPDLOCK until commit: two notifications for one attempt are handled one after the other.
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<PaymentAttempt> findWithLockByProviderNameAndProviderAttemptRef(String providerName, String attemptRef);
+
+    // Without a lock: the buyer's return page only reads the status the IPN recorded.
+    Optional<PaymentAttempt> findByProviderNameAndProviderAttemptRef(String providerName, String attemptRef);
 }

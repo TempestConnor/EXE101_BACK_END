@@ -28,4 +28,6 @@ public interface OrderService {
     Optional<Order> findLockedByItem(Long orderItemId);
 
     List<ShippableItem> listShippable(Collection<Long> orderItemIds);
+
+    Optional<Long> findOwnOrderIdByPayment(Long userId, Long paymentId);
 }

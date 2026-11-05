@@ -3,6 +3,8 @@ package com.exe101.payment.service;
 import com.exe101.commission.model.QuotePayment;
 import com.exe101.commission.model.QuoteSettlement;
 import com.exe101.commission.service.CommissionPaymentService;
+import com.exe101.common.error.AppErrorMessage;
+import com.exe101.common.error.AppException;
 import com.exe101.entitlement.service.EntitlementService;
 import com.exe101.entity.PaymentAttempt;
 import com.exe101.entity.ProviderEvent;
@@ -15,6 +17,7 @@ import com.exe101.order.model.PaymentTarget;
 import com.exe101.order.service.OrderService;
 import com.exe101.payment.mapper.PaymentEntityMapper;
 import com.exe101.payment.model.Attempt;
+import com.exe101.payment.model.AttemptLookup;
 import com.exe101.payment.model.AttemptStatus;
 import com.exe101.payment.model.EventOutcome;
 import com.exe101.payment.model.NotificationResult;
@@ -111,6 +114,34 @@ public class PaymentServiceImpl implements PaymentService {
             .withAmount(payment.getAmount())
             .withPaymentUrl(paymentUrl)
             .withExpiresAt(expiresAt)
+            .build();
+    }
+
+    // For the buyer's page after VNPay: what the attempt pays for and the status the signed IPN recorded. Read-only,
+    // no locks, nothing written; the return URL's own parameters are never trusted. Another buyer's attempt answers
+    // exactly as an unknown one does, so a reference cannot be confirmed to exist.
+    @Override
+    @Transactional(readOnly = true)
+    public AttemptLookup findAttempt(Long userId, String attemptRef) {
+        PaymentAttempt attempt = attemptRepository
+            .findByProviderNameAndProviderAttemptRef(VnpayGateway.providerName, attemptRef)
+            .orElseThrow(() -> new AppException(AppErrorMessage.PAYMENT_ATTEMPT_NOT_FOUND));
+        AttemptLookup.AttemptLookupBuilder lookup = AttemptLookup.builder()
+            .withAttemptRef(attempt.getProviderAttemptRef())
+            .withStatus(AttemptStatus.valueOf(attempt.getStatus()));
+        Optional<Long> orderId = orderService.findOwnOrderIdByPayment(userId, attempt.getPaymentId());
+
+        if (orderId.isPresent()) {
+            return lookup.withOrderId(orderId.get()).build();
+        }
+
+        QuotePayment quote = commissionPaymentService.findOwnPayment(userId, attempt.getPaymentId())
+            .orElseThrow(() -> new AppException(AppErrorMessage.PAYMENT_ATTEMPT_NOT_FOUND));
+
+        return lookup
+            .withCommissionId(quote.getCommissionId())
+            .withQuoteId(quote.getQuoteId())
+            .withInstallment(quote.getInstallment())
             .build();
     }
 

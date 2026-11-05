@@ -50,6 +50,25 @@ Decisions recorded 1 November 2026 for the F11 increment. Only Order payments; p
   (proceeds and digital releases, [done](artist-proceeds.md)) add their calls to the same success transaction.
 - **Unknown failures (R6):** recorded as `IGNORED`.
 
+## Return page lookup
+
+Added 5 November 2026, from the frontend integration report. The page VNPay sends the buyer back to has only
+`vnp_TxnRef`, the attempt reference, and its other return parameters are never trusted. It calls
+`GET /payments/attempts/{vnp_TxnRef}` with the buyer's Customer token and receives
+`{attemptRef, status, orderId, commissionId, quoteId, installment}`. Either `orderId` or the Quote fields are set,
+for an Order or a Quote installment.
+
+`status` is the attempt status, which only the signed IPN changes:
+- `INITIATED` / `PENDING`: not confirmed yet; the page can ask again shortly.
+- `SUCCEEDED`: paid.
+- `FAILED`: not paid.
+- `EXCEPTION`: money arrived but was not applied (late, wrong amount or a second success, as above); it waits for
+  manual reconciliation, so the page should tell the buyer to contact the team.
+
+The lookup is read-only: no locks, nothing written, no money moved. Another buyer's reference answers exactly as an
+unknown one does, `404 PAYMENT_ATTEMPT_NOT_FOUND`, so a reference cannot be confirmed to exist. Ownership is the
+Order's buyer, or the Commission's Customer for a Quote payment.
+
 ## Configuration
 
 | Property | Environment variable | Default |

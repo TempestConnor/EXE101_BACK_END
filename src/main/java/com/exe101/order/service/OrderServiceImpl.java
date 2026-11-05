@@ -284,6 +284,15 @@ public class OrderServiceImpl implements OrderService {
         return shippable;
     }
 
+    // The Order a Payment belongs to, only when it is this Customer's; empty for a Quote payment or another buyer's.
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Long> findOwnOrderIdByPayment(Long userId, Long paymentId) {
+        return paymentRepository.findOrderIdByPaymentId(paymentId)
+            .flatMap(orderId -> orderRepository.findByOrderIdAndCustomerId(orderId, userId))
+            .map(MarketplaceOrder::getOrderId);
+    }
+
     // The Cart version was checked when the Cart was claimed. Lines, quantities and unit prices must equal the
     // recomputed preview, and so must the total, which also covers a changed tax rate or shipping fee.
     private boolean confirmed(OrderCommit commit, CheckoutPreview preview) {

@@ -1,8 +1,10 @@
 package com.exe101.payment.mapper;
 
+import com.exe101.payment.dto.AttemptLookupDTO;
 import com.exe101.payment.dto.PaymentAttemptDTO;
 import com.exe101.payment.dto.QuotePaymentAttemptDTO;
 import com.exe101.payment.dto.VnpayIpnResponseDTO;
+import com.exe101.payment.model.AttemptLookup;
 import com.exe101.payment.model.PaymentStart;
 import com.exe101.payment.model.VnpayReply;
 import org.mapstruct.Mapper;
@@ -14,6 +16,8 @@ public interface PaymentMapper {
     PaymentAttemptDTO toDto(PaymentStart start);
 
     QuotePaymentAttemptDTO toQuoteDto(PaymentStart start);
+
+    AttemptLookupDTO toDto(AttemptLookup lookup);
 
     @Mapping(source = "code", target = "rspCode")
     @Mapping(source = "message", target = "message")

@@ -32,6 +32,7 @@ import com.exe101.order.repository.PaymentRepository;
 import com.exe101.order.service.OrderServiceImpl;
 import com.exe101.payment.config.VnpayProperties;
 import com.exe101.payment.mapper.PaymentEntityMapperImpl;
+import com.exe101.payment.model.AttemptStatus;
 import com.exe101.payment.model.EventOutcome;
 import com.exe101.payment.model.VnpayReply;
 import com.exe101.payment.repository.PaymentAttemptRepository;
@@ -221,6 +222,99 @@ class PaymentServiceTest {
             () -> assertThat(fields(quoteUrl.substring(payUrl.length() + 1, quoteUrl.indexOf("&vnp_SecureHash="))))
                 .containsEntry("vnp_IpAddr", "127.0.0.1")
         );
+    }
+
+    @Test
+    void attempt_lookup_order_ok() {
+        // given
+        var ref = readableAttempt("SUCCEEDED");
+
+        // when
+        var result = service.findAttempt(buyerId, ref);
+
+        // then
+        assertAll(
+            () -> assertThat(result.getAttemptRef()).isEqualTo(ref),
+            () -> assertThat(result.getStatus()).isEqualTo(AttemptStatus.SUCCEEDED),
+            () -> assertThat(result.getOrderId()).isEqualTo(orderId),
+            () -> assertThat(result.getCommissionId()).isNull(),
+            () -> assertThat(result.getQuoteId()).isNull(),
+            () -> assertThat(result.getInstallment()).isNull()
+        );
+    }
+
+    @Test
+    void attempt_lookup_quote_ok() {
+        // given
+        // The Payment belongs to a Quote, not an Order.
+        var ref = readableAttempt("INITIATED");
+        when(paymentRepository.findOrderIdByPaymentId(paymentId)).thenReturn(Optional.empty());
+        when(commissionPaymentService.findOwnPayment(buyerId, paymentId)).thenReturn(Optional.of(QuotePayment.builder()
+            .withPaymentId(paymentId)
+            .withCommissionId(3L)
+            .withQuoteId(21L)
+            .withInstallment(2)
+            .withAmount(new BigDecimal("55000.0000"))
+            .build()));
+
+        // when
+        var result = service.findAttempt(buyerId, ref);
+
+        // then
+        assertAll(
+            () -> assertThat(result.getStatus()).isEqualTo(AttemptStatus.INITIATED),
+            () -> assertThat(result.getOrderId()).isNull(),
+            () -> assertThat(result.getCommissionId()).isEqualTo(3L),
+            () -> assertThat(result.getQuoteId()).isEqualTo(21L),
+            () -> assertThat(result.getInstallment()).isEqualTo(2)
+        );
+    }
+
+    @Test
+    void attempt_lookup_other_customer_ko() {
+        // given
+        // Neither the Order nor any Commission is this Customer's.
+        var ref = readableAttempt("SUCCEEDED");
+        var otherCustomerId = 77L;
+
+        // when / then
+        assertThatThrownBy(() -> service.findAttempt(otherCustomerId, ref))
+            .isInstanceOf(AppException.class)
+            .extracting("error")
+            .isEqualTo(AppErrorMessage.PAYMENT_ATTEMPT_NOT_FOUND);
+    }
+
+    @Test
+    void attempt_lookup_unknown_ko() {
+        // given
+        when(attemptRepository.findByProviderNameAndProviderAttemptRef("VNPAY", "0".repeat(32)))
+            .thenReturn(Optional.empty());
+
+        // when / then
+        assertThatThrownBy(() -> service.findAttempt(buyerId, "0".repeat(32)))
+            .isInstanceOf(AppException.class)
+            .extracting("error")
+            .isEqualTo(AppErrorMessage.PAYMENT_ATTEMPT_NOT_FOUND);
+        verifyNoInteractions(commissionPaymentService);
+    }
+
+    @Test
+    void attempt_lookup_writes_nothing_ok() {
+        // given
+        var ref = readableAttempt("SUCCEEDED");
+
+        // when
+        service.findAttempt(buyerId, ref);
+
+        // then
+        // No locking read and no write: the page only reads what the IPN recorded.
+        verify(attemptRepository, never()).findWithLockByProviderNameAndProviderAttemptRef(any(), any());
+        verify(attemptRepository, never()).saveAndFlush(any());
+        verify(orderRepository, never()).findWithLockByOrderId(any());
+        verify(orderRepository, never()).saveAndFlush(any());
+        verify(paymentRepository, never()).findWithLockByPaymentId(any());
+        verify(paymentRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(eventRepository, entitlementService, fulfillmentService, proceedsService, ledgerService);
     }
 
     @Test
@@ -787,6 +881,16 @@ class PaymentServiceTest {
             .withTaxAmount(new BigDecimal("13727.0000"))
             .withPaidAt(now())
             .build();
+    }
+
+    // An attempt on this Order's Payment, read the way the return page reads it (no lock).
+    private String readableAttempt(String status) {
+        var ref = "a".repeat(32);
+        var attempt = new PaymentAttempt(paymentId, "VNPAY", ref, null, status, now().minusMinutes(1), null);
+        attempt.setAttemptId(700L);
+        when(attemptRepository.findByProviderNameAndProviderAttemptRef("VNPAY", ref)).thenReturn(Optional.of(attempt));
+
+        return ref;
     }
 
     private void givenAttempt(String ref, String status) {

@@ -99,6 +99,25 @@ public class CommissionPaymentServiceImpl implements CommissionPaymentService {
         return paymentRepository.findQuoteIdByPaymentId(paymentId).isPresent();
     }
 
+    // The Quote installment a Payment pays, only when the Commission is this Customer's; empty for an Order payment
+    // or another Customer's. Read without locks, for the buyer's return page.
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<QuotePayment> findOwnPayment(Long userId, Long paymentId) {
+        return paymentRepository.findById(paymentId)
+            .filter(payment -> payment.getQuoteId() != null)
+            .flatMap(payment -> quoteRepository.findCommissionIdByQuoteId(payment.getQuoteId())
+                .flatMap(repository::findById)
+                .filter(commission -> commission.getCustomerId() == userId)
+                .map(commission -> QuotePayment.builder()
+                    .withPaymentId(payment.getPaymentId())
+                    .withCommissionId(commission.getCommissionId())
+                    .withQuoteId(payment.getQuoteId())
+                    .withInstallment(payment.getInstallment())
+                    .withAmount(payment.getAmount())
+                    .build()));
+    }
+
     // §12.6: only a confirmed success of the exact installment due changes the Commission. The first starts the work;
     // the final one marks the Quote PAID and completes the Commission (amendment §D.13), and the caller releases the
     // Quote's proceeds. Money that arrives when the installment can no longer be paid leaves the Commission as it is;

@@ -130,6 +130,7 @@ public class SecurityConfiguration {
                     .hasRole("ADMIN")
                 // Authenticated by the VNPay signature, not by a token.
                 .requestMatchers(HttpMethod.GET, "/payments/vnpay/ipn").permitAll()
+                .requestMatchers(HttpMethod.GET, "/payments/attempts/*").hasRole("CUSTOMER")
                 .requestMatchers(HttpMethod.GET, "/catalog/artworks", "/catalog/artworks/**").permitAll()
                 .anyRequest().denyAll())
             .exceptionHandling(errors -> errors
