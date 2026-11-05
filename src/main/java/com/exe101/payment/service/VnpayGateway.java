@@ -14,6 +14,7 @@ import java.util.HexFormat;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 import javax.crypto.Mac;
@@ -34,6 +35,10 @@ public class VnpayGateway {
     private static String hashTypeField = "vnp_SecureHashType";
     private static ZoneOffset vnpayOffset = ZoneOffset.ofHours(7);
     private static DateTimeFormatter timeFormat = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+    // A buyer on the same machine (local development) arrives as the IPv6 loopback, which is sent in IPv4 form.
+    // vnp_IpAddr is the buyer's address for VNPay's own checks; it plays no part in amounts or confirmation.
+    private static Set<String> ipv6Loopback = Set.of("::1", "0:0:0:0:0:0:0:1");
+    private static String ipv4Loopback = "127.0.0.1";
     private final VnpayProperties properties;
 
     // The page accepts payment only until the Order's ExpiresAt, so VNPay itself refuses most late payments.
@@ -52,7 +57,7 @@ public class VnpayGateway {
         fields.put("vnp_OrderType", "other");
         fields.put("vnp_Locale", "vn");
         fields.put("vnp_ReturnUrl", properties.returnUrl().toString());
-        fields.put("vnp_IpAddr", clientIp);
+        fields.put("vnp_IpAddr", vnpayIp(clientIp));
         fields.put("vnp_CreateDate", vnpayTime(createdAt));
         fields.put("vnp_ExpireDate", vnpayTime(expiresAt));
         String query = encode(fields);
@@ -120,6 +125,10 @@ public class VnpayGateway {
     private boolean matches(String expected, String received) {
         return MessageDigest.isEqual(expected.getBytes(StandardCharsets.US_ASCII),
             received.toLowerCase(Locale.ROOT).getBytes(StandardCharsets.US_ASCII));
+    }
+
+    private String vnpayIp(String clientIp) {
+        return ipv6Loopback.contains(clientIp) ? ipv4Loopback : clientIp;
     }
 
     private String vnpayTime(OffsetDateTime time) {

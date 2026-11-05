@@ -44,6 +44,10 @@ origin in `CORS_ALLOWED_ORIGINS`, comma-separated exact origins such as
 `https://shop.example.com,http://localhost:3000`. Wildcards are refused at startup. Leave it empty when the
 storefront reaches the API through the same origin, such as a reverse proxy or the Vite dev proxy.
 
+Behind a reverse proxy (nginx, ngrok, a Docker network), the buyer's address sent to VNPay is taken from
+`X-Forwarded-For`, which Tomcat trusts only from loopback and private-range addresses. A proxy on a public address,
+such as a cloud load balancer, must be listed in `SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES` (a regular expression).
+
 To build without connecting to SQL Server:
 
 ```powershell

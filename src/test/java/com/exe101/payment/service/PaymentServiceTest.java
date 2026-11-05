@@ -62,6 +62,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
@@ -193,6 +194,32 @@ class PaymentServiceTest {
                     .format(vnpayTime)),
             () -> assertThat(signature).isEqualTo(hmac(query)),
             () -> assertThat(payment.getStatus()).isEqualTo("PENDING")
+        );
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"::1", "0:0:0:0:0:0:0:1"})
+    void start_ipv6_loopback_sent_as_ipv4_ok(String loopback) {
+        // given
+        // A buyer on the same machine, for an Order and for a Quote installment.
+        when(commissionPaymentService.preparePayment(buyerId, 3L, 21L)).thenReturn(QuotePayment.builder()
+            .withPaymentId(paymentId)
+            .withCommissionId(3L)
+            .withQuoteId(21L)
+            .withInstallment(1)
+            .withAmount(new BigDecimal("55000.0000"))
+            .build());
+
+        // when
+        var orderUrl = service.start(buyerId, orderId, loopback).getPaymentUrl();
+        var quoteUrl = service.startQuote(buyerId, 3L, 21L, loopback).getPaymentUrl();
+
+        // then
+        assertAll(
+            () -> assertThat(fields(orderUrl.substring(payUrl.length() + 1, orderUrl.indexOf("&vnp_SecureHash="))))
+                .containsEntry("vnp_IpAddr", "127.0.0.1"),
+            () -> assertThat(fields(quoteUrl.substring(payUrl.length() + 1, quoteUrl.indexOf("&vnp_SecureHash="))))
+                .containsEntry("vnp_IpAddr", "127.0.0.1")
         );
     }
 
