@@ -33,7 +33,7 @@ No account-deletion endpoint or workflow is added.
 | Endpoint | Request | Success |
 | --- | --- | --- |
 | `POST /customers/register` | `email`, `password`, `displayName` | 201 with `userId`, `email`, `displayName`, `createdAt` |
-| `POST /customers/login` | `email`, `password` | 200 with `accessToken`, `tokenType: "Bearer"`, `expiresIn: 900` |
+| `POST /customers/login` | `email`, `password` | 200 with `accessToken`, `tokenType: "Bearer"`, `expiresIn: 7200` (the configured lifetime in seconds) |
 | `GET /customers/me` | `Authorization: Bearer <accessToken>` | 200 with the authenticated Customer's public fields |
 
 Registration does not log the Customer in automatically. Log in after registration.
@@ -56,7 +56,8 @@ generic 500 (`INTERNAL_ERROR`); database failures are not credential failures.
 
 ## Tokens and password storage
 
-Access tokens are HS256 JWTs valid for 15 minutes, with Customer-specific issuer
+Access tokens are HS256 JWTs valid for `app.jwt.access-token-lifetime` (`JWT_ACCESS_TOKEN_LIFETIME`, default
+2 hours; changed from 15 minutes on 5 November 2026 so users are not signed out mid-checkout), with Customer-specific issuer
 and audience, a stable User ID subject, issue/expiry timestamps and `type=access`.
 Signature, algorithm, issuer, audience, timestamps, token type and subject are
 validated before current account state is checked. Tokens contain no email,
@@ -64,7 +65,9 @@ password or client-selected roles. Invalid supplied tokens are rejected even on
 the public registration/login routes.
 
 The demo has no refresh-token or per-token revocation endpoint. Clients log in
-again after expiry and discard their token when logging out. Blocking an account
+again after expiry and discard their token when logging out. Known weakness: a
+leaked token stays usable until it expires, up to the full lifetime, and logging
+out does not revoke it; refresh tokens with server-side revocation would close it. Blocking an account
 denies its existing tokens while it is blocked; it does not permanently revoke
 tokens if that account is later reactivated before token expiry. Changing the
 signing secret invalidates all existing tokens.

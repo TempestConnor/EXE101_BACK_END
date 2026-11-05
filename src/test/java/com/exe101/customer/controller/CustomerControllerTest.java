@@ -123,7 +123,8 @@ class CustomerControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.accessToken").isString())
             .andExpect(jsonPath("$.tokenType").value("Bearer"))
-            .andExpect(jsonPath("$.expiresIn").value(900))
+            // The default lifetime (app.jwt.access-token-lifetime), 2 hours.
+            .andExpect(jsonPath("$.expiresIn").value(7200))
             .andExpect(header().doesNotExist("Set-Cookie"));
     }
 

@@ -1,9 +1,11 @@
 package com.exe101.staff.config;
 
 import com.exe101.common.security.AccessTokenValidator;
+import com.exe101.common.security.JwtProperties;
 import com.exe101.staff.security.StaffTokenIssuer;
 import java.time.Clock;
 import javax.crypto.SecretKey;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
@@ -11,6 +13,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 
 @Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties(JwtProperties.class)
 public class StaffTokenConfiguration {
     @Bean
     public JwtDecoder staffJwtDecoder(SecretKey customerSigningKey, Clock customerClock) {

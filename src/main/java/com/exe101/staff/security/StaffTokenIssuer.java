@@ -1,5 +1,6 @@
 package com.exe101.staff.security;
 
+import com.exe101.common.security.JwtProperties;
 import com.exe101.staff.model.StaffToken;
 import java.time.Clock;
 import java.time.Instant;
@@ -17,12 +18,13 @@ import org.springframework.stereotype.Component;
 public class StaffTokenIssuer {
     public static String issuer = "exe101-staff";
     public static String audience = "exe101-staff-api";
-    public static long lifetimeSeconds = 900;
     private final JwtEncoder encoder;
     private final Clock clock;
+    private final JwtProperties properties;
 
     public StaffToken issue(Long staffId) {
         Instant now = clock.instant();
+        long lifetimeSeconds = properties.accessTokenLifetime().toSeconds();
         JwtClaimsSet claims = JwtClaimsSet.builder()
             .issuer(issuer)
             .audience(List.of(audience))

@@ -1,6 +1,7 @@
 package com.exe101.customer.config;
 
 import com.exe101.common.security.AccessTokenValidator;
+import com.exe101.common.security.JwtProperties;
 import com.exe101.customer.security.CustomerTokenIssuer;
 import java.time.Clock;
 import java.util.Base64;
@@ -8,6 +9,7 @@ import java.util.Map;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.password.DelegatingPasswordEncoder;
@@ -20,6 +22,7 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 
 @Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties(JwtProperties.class)
 public class CustomerTokenConfiguration {
     @Bean
     public Clock customerClock() {

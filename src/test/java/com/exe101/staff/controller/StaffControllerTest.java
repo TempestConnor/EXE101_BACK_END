@@ -61,7 +61,7 @@ class StaffControllerTest {
                 """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.tokenType").value("Bearer"))
-            .andExpect(jsonPath("$.expiresIn").value(900))
+            .andExpect(jsonPath("$.expiresIn").value(7200))
             .andExpect(header().doesNotExist("Set-Cookie"))
             .andReturn();
         var token = jsonMapper.readTree(result.getResponse().getContentAsString()).get("accessToken").asText();

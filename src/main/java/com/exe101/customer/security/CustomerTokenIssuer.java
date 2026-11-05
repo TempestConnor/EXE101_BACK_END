@@ -1,5 +1,6 @@
 package com.exe101.customer.security;
 
+import com.exe101.common.security.JwtProperties;
 import com.exe101.customer.model.CustomerToken;
 import java.time.Clock;
 import java.time.Instant;
@@ -17,12 +18,13 @@ import org.springframework.stereotype.Component;
 public class CustomerTokenIssuer {
     public static String issuer = "exe101-customer";
     public static String audience = "exe101-customer-api";
-    public static long lifetimeSeconds = 900;
     private final JwtEncoder encoder;
     private final Clock clock;
+    private final JwtProperties properties;
 
     public CustomerToken issue(Long userId) {
         Instant now = clock.instant();
+        long lifetimeSeconds = properties.accessTokenLifetime().toSeconds();
         JwtClaimsSet claims = JwtClaimsSet.builder()
             .issuer(issuer)
             .audience(List.of(audience))

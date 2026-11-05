@@ -1,7 +1,9 @@
 package com.exe101.customer.security;
 
+import com.exe101.common.security.JwtProperties;
 import com.exe101.customer.config.CustomerTokenConfiguration;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -32,7 +34,36 @@ class CustomerTokenTest {
         var key = config.customerSigningKey("dGVzdC1vbmx5LWtleS0zMi1ieXRlcy1taW5pbXVtLW5vdC1mb3ItZGVwbG95bWVudA==");
         encoder = config.customerJwtEncoder(key);
         decoder = config.customerJwtDecoder(key, clock);
-        issuer = new CustomerTokenIssuer(encoder, clock);
+        issuer = new CustomerTokenIssuer(encoder, clock, new JwtProperties(Duration.ofHours(2)));
+    }
+
+    @Test
+    void issued_token_lifetime_ok() {
+        // given / when
+        var token = issuer.issue(42L);
+        var decoded = decoder.decode(token.getAccessToken());
+
+        // then
+        assertAll(
+            () -> assertThat(decoded.getExpiresAt()).isEqualTo(now.plusSeconds(7200)),
+            () -> assertThat(token.getExpiresIn()).isEqualTo(7200)
+        );
+    }
+
+    @Test
+    void configured_lifetime_ok() {
+        // given
+        var shortLived = new CustomerTokenIssuer(encoder, Clock.fixed(now, ZoneOffset.UTC),
+            new JwtProperties(Duration.ofMinutes(30)));
+
+        // when
+        var token = shortLived.issue(42L);
+
+        // then
+        assertAll(
+            () -> assertThat(decoder.decode(token.getAccessToken()).getExpiresAt()).isEqualTo(now.plusSeconds(1800)),
+            () -> assertThat(token.getExpiresIn()).isEqualTo(1800)
+        );
     }
 
     @Test
@@ -44,7 +75,7 @@ class CustomerTokenTest {
         // then
         assertAll(
             () -> assertThat(decoded.getSubject()).isEqualTo("42"),
-            () -> assertThat(decoded.getExpiresAt()).isEqualTo(now.plusSeconds(900)),
+            () -> assertThat(decoded.getExpiresAt()).isEqualTo(now.plusSeconds(7200)),
             () -> assertThat(decoded.getClaimAsString("type")).isEqualTo("access"),
             () -> assertThat(decoded.getClaims()).doesNotContainKeys("email", "password", "roles"),
             () -> assertThat(token.getTokenType()).isEqualTo("Bearer")

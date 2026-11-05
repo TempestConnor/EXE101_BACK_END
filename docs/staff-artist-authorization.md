@@ -30,7 +30,7 @@ Decisions confirmed on 31 October 2026:
 
 | Endpoint | Request | Success |
 | --- | --- | --- |
-| `POST /staff/login` | `loginName`, `password` | 200 with `accessToken`, `tokenType: "Bearer"`, `expiresIn: 900` |
+| `POST /staff/login` | `loginName`, `password` | 200 with `accessToken`, `tokenType: "Bearer"`, `expiresIn: 7200` |
 | `POST /artists` | Admin bearer token; `userId`, `displayName`, optional `reason` (≤ 2000) | 201 with `artistId`, `userId`, `displayName`, `status`, `acceptingCommissions`, `createdAt` |
 | `GET /artists/me` | Customer bearer token | 200 with the caller's own Artist Profile (`artistId`, `userId`, `displayName`, `status`, `acceptingCommissions`, `startingPrice`, `createdAt`), deactivated (`SUSPENDED`) or not; `403 ARTIST_PROFILE_REQUIRED` when the Customer has none |
 
