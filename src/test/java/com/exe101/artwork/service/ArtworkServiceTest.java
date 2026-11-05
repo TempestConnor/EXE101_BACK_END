@@ -42,6 +42,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
@@ -617,7 +618,9 @@ class ArtworkServiceTest {
             () -> assertThat(result.getStatus()).isEqualTo(ArtworkStatus.PUBLISHED),
             () -> assertThat(result.isPurchasable()).isFalse()
         );
-        verifyNoInteractions(artistService);
+        // Availability does not look up the Artist's status; only the name is read.
+        verify(artistService, never()).get(any());
+        verify(artistService).listByIds(List.of(3L));
     }
 
     @Test
@@ -656,6 +659,47 @@ class ArtworkServiceTest {
 
         // then
         assertThat(result.getTags()).extracting("tagId").containsExactly(1);
+    }
+
+    @Test
+    void list_published_has_artist_name_ok() {
+        // given
+        // Two Artists; a deactivated Artist's name is still shown.
+        when(repository.findByStatusOrderByPublishedAtDesc("PUBLISHED"))
+            .thenReturn(List.of(published(10L, 3L), published(11L, 4L), published(12L, 3L)));
+        when(artistService.listByIds(List.of(3L, 4L))).thenReturn(List.of(
+            Artist.builder().withArtistId(3L).withDisplayName("Painter").withStatus("ACTIVE").build(),
+            Artist.builder().withArtistId(4L).withDisplayName("Sculptor").withStatus("SUSPENDED").build()));
+
+        // when
+        var result = service.listPublished();
+
+        // then
+        assertThat(result)
+            .extracting("artworkId", "artistId", "artistDisplayName")
+            .containsExactly(tuple(10L, 3L, "Painter"), tuple(11L, 4L, "Sculptor"), tuple(12L, 3L, "Painter"));
+    }
+
+    @Test
+    void artist_names_one_lookup_ok() {
+        // given
+        when(repository.findByStatusOrderByPublishedAtDesc("PUBLISHED"))
+            .thenReturn(List.of(published(10L, 3L), published(11L, 4L), published(12L, 3L)));
+
+        // when
+        service.listPublished();
+
+        // then
+        // Each Artist once, in one read, however many Artworks they have.
+        verify(artistService).listByIds(List.of(3L, 4L));
+        verify(artistService, never()).get(any());
+    }
+
+    private Artwork published(long artworkId, long artistId) {
+        var artwork = artwork(artistId, "PUBLISHED", firstPublished);
+        artwork.setArtworkId(artworkId);
+
+        return artwork;
     }
 
     private void ownedDraft() {

@@ -17,6 +17,8 @@ import lombok.Setter;
 public class Artwork {
     private Long artworkId;
     private Long artistId;
+    // The Artist's current display name, read with the Artwork for every listing (added 5 November 2026).
+    private String artistDisplayName;
     private String title;
     private String description;
     private String dimension;

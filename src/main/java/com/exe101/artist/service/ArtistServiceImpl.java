@@ -96,6 +96,13 @@ public class ArtistServiceImpl implements ArtistService {
         return mapper.toModel(entity);
     }
 
+    // Read without locks, to show Artists' names next to their Artworks; unknown IDs are skipped.
+    @Override
+    @Transactional(readOnly = true)
+    public List<Artist> listByIds(Collection<Long> artistIds) {
+        return repository.findAllById(artistIds).stream().map(mapper::toModel).toList();
+    }
+
     @Override
     public Artist getByUserId(Long userId) {
         ArtistProfile entity = repository.findByUserId(userId)

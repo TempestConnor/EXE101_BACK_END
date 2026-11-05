@@ -66,6 +66,10 @@ Decisions recorded 31 October 2026 for the F05 increment.
 | `GET /catalog/artworks`, `GET /catalog/artworks/{artworkId}` | anyone | published Artwork |
 | `GET /catalog/artworks/{artworkId}/previews/{mediaId}/content` | anyone | preview bytes of published Artwork |
 
+Every Artwork response (catalog, the Artist's own and the Admin's) carries `artistDisplayName`, the Artist's current
+display name, beside `artistId` (added 5 November 2026, from the frontend integration report). The names of a list
+are read in one query; a deactivated Artist's name is still shown.
+
 Errors follow the Problem Details contract. New codes: `ARTIST_PROFILE_REQUIRED` (403), `ARTIST_NOT_ACTIVE`,
 `ARTWORK_VERSION_CONFLICT`, `ARTWORK_NOT_EDITABLE`, `ARTWORK_STATUS_CHANGE_NOT_ALLOWED`,
 `ARTWORK_DIMENSION_LOCKED`, `ARTWORK_PREVIEW_REQUIRED`, `ARTWORK_MEDIA_ORDER_TAKEN`, `PREVIEW_LIMIT_REACHED`,

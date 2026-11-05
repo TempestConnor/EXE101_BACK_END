@@ -18,6 +18,7 @@ public interface ArtworkEntityMapper {
     @Mapping(source = "publishedAt", target = "withPublishedAt")
     @Mapping(source = "createdAt", target = "withCreatedAt")
     @Mapping(source = "rowVer", target = "withVersion")
+    @Mapping(target = "withArtistDisplayName", ignore = true)
     @Mapping(target = "withPurchasable", ignore = true)
     @Mapping(target = "withTags", ignore = true)
     @Mapping(target = "withPreviews", ignore = true)

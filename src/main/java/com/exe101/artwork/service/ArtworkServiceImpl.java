@@ -471,10 +471,15 @@ public class ArtworkServiceImpl implements ArtworkService {
             .collect(Collectors.groupingBy(link -> link.getId().getArtworkId(),
                 Collectors.mapping(link -> activeTags.get(link.getId().getTagId()), Collectors.toList())));
         Set<Long> purchasable = purchasable(entities);
+        // One read for the whole list; a team has few Artists, far under SQL Server's parameter limit.
+        List<Long> artistIds = entities.stream().map(com.exe101.entity.Artwork::getArtistId).distinct().toList();
+        Map<Long, String> artistNames = artistService.listByIds(artistIds).stream()
+            .collect(Collectors.toMap(Artist::getArtistId, Artist::getDisplayName));
 
         return entities.stream()
             .map(entity -> {
                 Artwork artwork = mapper.toModel(entity);
+                artwork.setArtistDisplayName(artistNames.get(entity.getArtistId()));
                 artwork.setPreviews(previews.getOrDefault(entity.getArtworkId(), List.of()));
                 artwork.setTags(tagsByArtwork.getOrDefault(entity.getArtworkId(), List.of()));
                 artwork.setPurchasable(purchasable.contains(entity.getArtworkId()));
