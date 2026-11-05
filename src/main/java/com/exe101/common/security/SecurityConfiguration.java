@@ -90,6 +90,8 @@ public class SecurityConfiguration {
                 .requestMatchers(HttpMethod.POST, "/artists").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/artists/me/commission-settings").hasRole("CUSTOMER")
                 .requestMatchers(HttpMethod.POST, "/artists/me/terms").hasRole("CUSTOMER")
+                // Before the public /artists/*, which would otherwise match "me" as an Artist ID.
+                .requestMatchers(HttpMethod.GET, "/artists/me").hasRole("CUSTOMER")
                 .requestMatchers(HttpMethod.GET, "/artists/*", "/artists/*/terms", "/artists/*/terms/images/*/content")
                     .permitAll()
                 .requestMatchers("/commissions", "/commissions/**").hasRole("CUSTOMER")

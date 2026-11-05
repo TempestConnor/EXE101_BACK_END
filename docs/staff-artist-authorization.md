@@ -32,6 +32,11 @@ Decisions confirmed on 31 October 2026:
 | --- | --- | --- |
 | `POST /staff/login` | `loginName`, `password` | 200 with `accessToken`, `tokenType: "Bearer"`, `expiresIn: 900` |
 | `POST /artists` | Admin bearer token; `userId`, `displayName`, optional `reason` (≤ 2000) | 201 with `artistId`, `userId`, `displayName`, `status`, `acceptingCommissions`, `createdAt` |
+| `GET /artists/me` | Customer bearer token | 200 with the caller's own Artist Profile (`artistId`, `userId`, `displayName`, `status`, `acceptingCommissions`, `startingPrice`, `createdAt`), deactivated (`SUSPENDED`) or not; `403 ARTIST_PROFILE_REQUIRED` when the Customer has none |
+
+`GET /artists/me` (added 5 November 2026, from the frontend integration report) lets the storefront tell whether the
+signed-in Customer is an Artist and find their own `artistId`, for example for the terms page before any Artwork
+exists.
 
 Errors follow the F01 Problem Details contract. New codes: `USER_NOT_FOUND` (404),
 `USER_NOT_ACTIVE` (409) and `ARTIST_ALREADY_GRANTED` (409). A Customer token on a

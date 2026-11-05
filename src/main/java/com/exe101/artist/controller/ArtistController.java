@@ -36,6 +36,15 @@ public class ArtistController {
         return response;
     }
 
+    // The signed-in Customer's own Artist Profile, deactivated or not; 403 ARTIST_PROFILE_REQUIRED without one.
+    @GetMapping("/me")
+    public ArtistDTO me(@AuthenticationPrincipal Long userId) {
+        var artist = artistService.getByUserId(userId);
+        var response = mapper.toDto(artist);
+
+        return response;
+    }
+
     @GetMapping("/{artistId}")
     public PublicArtistDTO get(@PathVariable Long artistId) {
         var artist = artistService.getPublic(artistId);

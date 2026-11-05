@@ -1,6 +1,7 @@
 package com.exe101.artist.controller;
 
 import com.exe101.artist.mapper.ArtistMapperImpl;
+import com.exe101.artist.model.Artist;
 import com.exe101.artist.service.ArtistService;
 import com.exe101.common.error.AppErrorMessage;
 import com.exe101.common.error.AppException;
@@ -17,6 +18,9 @@ import com.exe101.staff.model.Staff;
 import com.exe101.staff.security.StaffAuthenticationConverter;
 import com.exe101.staff.security.StaffTokenIssuer;
 import com.exe101.staff.service.StaffService;
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -25,8 +29,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -125,6 +131,71 @@ class ArtistControllerTest {
     }
 
     @Test
+    void me_returns_own_profile_ok() throws Exception {
+        // given
+        // A deactivated Artist still sees their own profile and its status.
+        var token = customerToken();
+        when(artists.getByUserId(42L)).thenReturn(Artist.builder()
+            .withArtistId(500L)
+            .withUserId(42L)
+            .withDisplayName("Painter")
+            .withBio("Private bio")
+            .withStatus("SUSPENDED")
+            .withAcceptingCommissions(true)
+            .withStartingPrice(new BigDecimal("500000"))
+            .withAuthorizedByStaffId(7L)
+            .withCreatedAt(OffsetDateTime.of(2026, 11, 1, 9, 0, 0, 0, ZoneOffset.UTC))
+            .build());
+
+        // when / then
+        mvc.perform(get("/artists/me").header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.artistId").value(500))
+            .andExpect(jsonPath("$.userId").value(42))
+            .andExpect(jsonPath("$.displayName").value("Painter"))
+            .andExpect(jsonPath("$.status").value("SUSPENDED"))
+            .andExpect(jsonPath("$.acceptingCommissions").value(true))
+            .andExpect(jsonPath("$.startingPrice").value(500000))
+            .andExpect(jsonPath("$.authorizedByStaffId").doesNotExist());
+        verify(artists).getByUserId(42L);
+    }
+
+    @Test
+    void me_not_artist_ko() throws Exception {
+        // given
+        var token = customerToken();
+        when(artists.getByUserId(42L)).thenThrow(new AppException(AppErrorMessage.ARTIST_PROFILE_REQUIRED));
+
+        // when / then
+        mvc.perform(get("/artists/me").header("Authorization", "Bearer " + token))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.errorCode").value("ARTIST_PROFILE_REQUIRED"));
+    }
+
+    @Test
+    void me_anonymous_ko() throws Exception {
+        // given / when / then
+        // The public GET /artists/{artistId} rule does not let "me" through without a token.
+        mvc.perform(get("/artists/me"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.errorCode").value("AUTHENTICATION_REQUIRED"));
+        verifyNoInteractions(artists);
+    }
+
+    @Test
+    void me_staff_token_ko() throws Exception {
+        // given
+        var token = staffIssuer.issue(7L).getAccessToken();
+        when(staff.requireActive(7L)).thenReturn(new Staff(7L, "admin", "ADMIN"));
+
+        // when / then
+        mvc.perform(get("/artists/me").header("Authorization", "Bearer " + token))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.errorCode").value("ACCESS_DENIED"));
+        verifyNoInteractions(artists);
+    }
+
+    @Test
     void staff_token_after_deactivation_ko() throws Exception {
         // given
         var token = staffIssuer.issue(7L).getAccessToken();
@@ -136,5 +207,11 @@ class ArtistControllerTest {
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.errorCode").value("AUTHENTICATION_REQUIRED"));
         verifyNoInteractions(artists);
+    }
+
+    private String customerToken() {
+        when(customers.requireActive(42L)).thenReturn(Customer.builder().withUserId(42L).build());
+
+        return customerIssuer.issue(42L).getAccessToken();
     }
 }
