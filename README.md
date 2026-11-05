@@ -69,6 +69,11 @@ Behind a reverse proxy (nginx, ngrok, a Docker network), the buyer's address sen
 `X-Forwarded-For`, which Tomcat trusts only from loopback and private-range addresses. A proxy on a public address,
 such as a cloud load balancer, must be listed in `SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES` (a regular expression).
 
+Uploads are limited to 200 MB per file (201 MB per request). Tomcat stops reading an upload far over the limit and
+closes the connection, so the browser may see a network error instead of `413 PAYLOAD_TOO_LARGE`. Behind nginx, set
+`client_max_body_size 201m;` so nginx answers oversized uploads with its own 413 before they reach the backend; the
+storefront should also check the file size before uploading.
+
 To build without connecting to SQL Server:
 
 ```powershell

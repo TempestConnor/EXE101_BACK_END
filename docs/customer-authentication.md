@@ -47,7 +47,8 @@ an `errorCode` extension. Validation/malformed requests return 400
 Other errors Spring raises itself carry a code from their status (changed 5 November 2026): `NOT_FOUND` (404),
 `METHOD_NOT_ALLOWED` (405), `NOT_ACCEPTABLE` (406), `PAYLOAD_TOO_LARGE` (413, an upload over the 200 MB multipart
 limit) and `UNSUPPORTED_MEDIA_TYPE` (415); 5xx ones `INTERNAL_ERROR`. An upload far over the limit may instead see
-the connection closed, since the server stops reading it, so clients should check the file size before uploading.
+the connection closed, since the server stops reading it, so clients should check the file size before uploading
+(decided 5 November 2026; a deployment's reverse proxy also rejects oversized bodies itself, see the README).
 Incorrect credentials and unavailable accounts share a 401 response
 (`INVALID_CREDENTIALS`). Missing, expired, malformed or otherwise invalid bearer
 tokens return 401 (`AUTHENTICATION_REQUIRED`) with a Bearer challenge. Forbidden

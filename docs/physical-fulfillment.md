@@ -70,7 +70,8 @@ status), `403` for non-Admin tokens.
 
 - The Admin list is not paged and returns every matching item. Its details are read for the listed items only
   (never whole Orders), in chunks of 1000 item IDs, so no query reaches SQL Server's 2100-parameter limit however
-  many lines an Order has. Paging, when added, needs a decision on the list format shared by every list endpoint,
+  many lines an Order has. Paging is deferred for the class release (decided 5 November 2026): the list grows by
+  one row per physical item sold. When added, it needs a decision on the list format shared by every list endpoint,
   and should use a cursor rather than an offset: advancing an item moves it out of a status filter, which would make
   offset pages skip items.
 
