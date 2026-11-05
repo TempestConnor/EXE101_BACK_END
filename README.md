@@ -95,15 +95,27 @@ would ever see its payments confirmed. Never commit the merchant's values; the s
 1. Register at `https://sandbox.vnpayment.vn/devreg/`. VNPay emails a Terminal ID (`vnp_TmnCode`), a Secret Key
    (`vnp_HashSecret`), a Merchant Admin login (`https://sandbox.vnpayment.vn/merchantv2/`) and a test card.
 2. Put the two values in `.local/application.properties` as `VNPAY_TMN_CODE` and `VNPAY_HASH_SECRET`.
-3. Start the backend (`.\scripts\dev.ps1 Run`), then a public tunnel to it, for example `ngrok http 8080`.
-4. Send VNPay your IPN URL, `https://<tunnel address>/payments/vnpay/ipn`, as their email asks. A free ngrok address
-   changes on every restart, so the URL has to be updated each time; a fixed (reserved) ngrok domain avoids that.
-   VNPay's test-scenario site, `https://sandbox.vnpayment.vn/vnpaygw-sit-testing/user/login`, exercises the IPN.
+3. Start the backend (`.\scripts\dev.ps1 Run`) and publish it with a tunnel. VNPay confirms each payment by calling
+   your backend from the internet, and `localhost` cannot be reached from there; without a tunnel the payment page
+   works but no Order ever becomes `PAID`. The team uses **Tailscale Funnel**, so you need
+   [Tailscale](https://tailscale.com/download) installed and signed in:
+   - In the Tailscale admin console, enable MagicDNS and HTTPS certificates and allow Funnel for your machine (the
+     first `tailscale funnel` run prints a link if it is not allowed yet).
+   - Run `tailscale funnel --bg 8080`. Your address is `https://<machine>.<tailnet>.ts.net` (shown by
+     `tailscale funnel status`) and stays the same, so VNPay needs it only once.
+   - Run `tailscale funnel reset` when you finish: while Funnel is on, anyone can reach your dev backend.
+
+   ngrok (`ngrok http 8080`) also works, but a free ngrok address changes on every restart.
+4. Send VNPay your IPN URL, `https://<tunnel address>/payments/vnpay/ipn`, as their email asks. Opening it in a
+   browser should answer `{"RspCode":"97","Message":"Invalid signature"}`: the backend is reachable and refuses
+   unsigned calls. VNPay's test-scenario site, `https://sandbox.vnpayment.vn/vnpaygw-sit-testing/user/login`,
+   exercises the IPN.
 5. Create an Order, call `POST /orders/{orderId}/payment-attempts` and open the returned `paymentUrl`. Pay with
    the test card from the email (bank NCB, OTP `123456`).
 6. Check the result: the return page's `GET /payments/attempts/{vnp_TxnRef}` should show `SUCCEEDED` and the Order
-   `PAID`. If it stays `INITIATED`, the IPN did not arrive: check the IPN URL and the tunnel's request log
-   (`http://127.0.0.1:4040` for ngrok).
+   `PAID`. If it stays `INITIATED`, the IPN did not arrive: check that the tunnel is still running
+   (`tailscale funnel status`), that VNPay has the right IPN URL, and the backend log for the `/payments/vnpay/ipn`
+   call.
 
 Run this against the development database, not `CuratedArtworkMarketplace_Test`.
 
