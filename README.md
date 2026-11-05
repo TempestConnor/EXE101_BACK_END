@@ -54,8 +54,9 @@ server's certificate. For deployed environments, supply a JDBC URL with normal
 certificate verification and the appropriate credentials through environment variables.
 
 When launching Java directly from an IDE or with `.\mvnw.cmd spring-boot:run`, the
-application reads `.local/application.properties` (ignored by Git), which can define
-`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET` and `STORAGE_ROOT`. Real environment
+application reads `.local/application.properties` (ignored by Git). Copy
+[tooling/application.example.properties](tooling/application.example.properties) there and fill it in; it lists
+every setting, including `DB_URL`, `JWT_SECRET` and the VNPay sandbox values. Real environment
 variables with the same names still take precedence. The JSON file is loaded only by
 `scripts/dev.ps1`. Artwork preview images are stored under `STORAGE_ROOT`
 (default `.local/storage`).
@@ -83,6 +84,28 @@ To build without connecting to SQL Server:
 The database tests run only when `DB_URL` is set. The helper sets it for `Verify`.
 VS Code should import `pom.xml` as a Maven project; reload the window if it still
 shows the previous unmanaged Java project.
+
+### VNPay sandbox
+
+Payments go through VNPay's test environment. Each developer needs their **own** sandbox merchant: VNPay sends
+every payment confirmation (the IPN) to one URL per merchant, so with a shared merchant only one person's backend
+would ever see its payments confirmed. Never commit the merchant's values; the secret key lets anyone sign fake
+"payment succeeded" notifications.
+
+1. Register at `https://sandbox.vnpayment.vn/devreg/`. VNPay emails a Terminal ID (`vnp_TmnCode`), a Secret Key
+   (`vnp_HashSecret`), a Merchant Admin login (`https://sandbox.vnpayment.vn/merchantv2/`) and a test card.
+2. Put the two values in `.local/application.properties` as `VNPAY_TMN_CODE` and `VNPAY_HASH_SECRET`.
+3. Start the backend (`.\scripts\dev.ps1 Run`), then a public tunnel to it, for example `ngrok http 8080`.
+4. Send VNPay your IPN URL, `https://<tunnel address>/payments/vnpay/ipn`, as their email asks. A free ngrok address
+   changes on every restart, so the URL has to be updated each time; a fixed (reserved) ngrok domain avoids that.
+   VNPay's test-scenario site, `https://sandbox.vnpayment.vn/vnpaygw-sit-testing/user/login`, exercises the IPN.
+5. Create an Order, call `POST /orders/{orderId}/payment-attempts` and open the returned `paymentUrl`. Pay with
+   the test card from the email (bank NCB, OTP `123456`).
+6. Check the result: the return page's `GET /payments/attempts/{vnp_TxnRef}` should show `SUCCEEDED` and the Order
+   `PAID`. If it stays `INITIATED`, the IPN did not arrive: check the IPN URL and the tunnel's request log
+   (`http://127.0.0.1:4040` for ngrok).
+
+Run this against the development database, not `CuratedArtworkMarketplace_Test`.
 
 ## Generated entities
 
