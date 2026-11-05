@@ -93,5 +93,10 @@ notifications locally; no test calls VNPay.
 - The VNPay contract was implemented from VNPay's published 2.1.0 integration guide; it has not yet been exercised
   against the sandbox, which needs the merchant's sandbox credentials and a reachable IPN URL.
 - The VNPay transaction query/refund APIs are not used; reconciliation of exceptions is manual.
+- `vnp_IpAddr` (decided 5 November 2026): VNPay documents it as `Alphanumeric[7,45]`, required, with IPv4
+  examples only. The IPv6 loopback is sent as `127.0.0.1`, and an IPv4 address written in IPv6 form
+  (`::ffff:203.0.113.7`) as plain IPv4. Other IPv6 addresses are sent as received; whether VNPay accepts them is
+  unverified until a real sandbox payment is made from an IPv6 connection. If it refuses them, buyers on IPv6-only
+  networks cannot reach the payment page; no money is taken in that case.
 - The exception reason is only in the application log (B2). The amount received is recorded in the ledger's
   `UNAPPLIED` account, one transaction per exception event ([Artist proceeds](artist-proceeds.md#ledger)).

@@ -224,6 +224,34 @@ class PaymentServiceTest {
         );
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"::ffff:203.0.113.7", "0:0:0:0:0:ffff:203.0.113.7", "::FFFF:cb00:7107"})
+    void start_ipv4_mapped_sent_as_ipv4_ok(String mapped) {
+        // given
+        // The same IPv4 address in the IPv6 forms a proxy may write into X-Forwarded-For.
+
+        // when
+        var url = service.start(buyerId, orderId, mapped).getPaymentUrl();
+
+        // then
+        assertThat(fields(url.substring(payUrl.length() + 1, url.indexOf("&vnp_SecureHash="))))
+            .containsEntry("vnp_IpAddr", "203.0.113.7");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"2001:db8::7", "not:an:address", "1:2:3"})
+    void start_other_ipv6_unchanged_ok(String clientIp) {
+        // given
+        // A real IPv6 address, or anything that is not an address (text, an invalid literal), is sent as received.
+
+        // when
+        var url = service.start(buyerId, orderId, clientIp).getPaymentUrl();
+
+        // then
+        assertThat(fields(url.substring(payUrl.length() + 1, url.indexOf("&vnp_SecureHash="))))
+            .containsEntry("vnp_IpAddr", clientIp);
+    }
+
     @Test
     void attempt_lookup_order_ok() {
         // given

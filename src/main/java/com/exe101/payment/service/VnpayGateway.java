@@ -3,7 +3,10 @@ package com.exe101.payment.service;
 import com.exe101.payment.config.VnpayProperties;
 import com.exe101.payment.model.ProviderNotification;
 import java.math.BigDecimal;
+import java.net.Inet4Address;
+import java.net.InetAddress;
 import java.net.URLEncoder;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
@@ -16,6 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -39,6 +43,7 @@ public class VnpayGateway {
     // vnp_IpAddr is the buyer's address for VNPay's own checks; it plays no part in amounts or confirmation.
     private static Set<String> ipv6Loopback = Set.of("::1", "0:0:0:0:0:0:0:1");
     private static String ipv4Loopback = "127.0.0.1";
+    private static Pattern ipv6Literal = Pattern.compile("[0-9A-Fa-f:][0-9A-Fa-f:.]*");
     private final VnpayProperties properties;
 
     // The page accepts payment only until the Order's ExpiresAt, so VNPay itself refuses most late payments.
@@ -127,8 +132,26 @@ public class VnpayGateway {
             received.toLowerCase(Locale.ROOT).getBytes(StandardCharsets.US_ASCII));
     }
 
+    // VNPay documents vnp_IpAddr with IPv4 examples only (API 2.1.0), so an IPv4 address written in IPv6 form
+    // (::ffff:203.0.113.7, as some proxies put it in X-Forwarded-For) is sent as plain IPv4. Other IPv6 addresses go
+    // as they are. Only hex digits, ':' and '.' starting with a hex digit or ':' are parsed: Java then reads the text
+    // as an IP literal and throws if it is not one, so header text never triggers a DNS lookup.
     private String vnpayIp(String clientIp) {
-        return ipv6Loopback.contains(clientIp) ? ipv4Loopback : clientIp;
+        if (ipv6Loopback.contains(clientIp)) {
+            return ipv4Loopback;
+        }
+
+        if (clientIp == null || !clientIp.contains(":") || !ipv6Literal.matcher(clientIp).matches()) {
+            return clientIp;
+        }
+
+        try {
+            InetAddress address = InetAddress.getByName(clientIp);
+
+            return address instanceof Inet4Address ? address.getHostAddress() : clientIp;
+        } catch (UnknownHostException exception) {
+            return clientIp;
+        }
     }
 
     private String vnpayTime(OffsetDateTime time) {
