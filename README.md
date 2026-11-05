@@ -17,6 +17,27 @@ host and port with your SQL Server TCP address.
 .\scripts\dev.ps1 Run
 ```
 
+### Setting up a new database
+
+The baseline schema is not in this repository: it is the team's schema script (`EXE101_SQL_Schema.sql` in the
+specification), shared separately. On a new machine:
+
+1. Create `CuratedArtworkMarketplace` from the baseline script.
+2. Apply every file in [database/migrations](database/migrations) on top, one at a time, in number order. Each is
+   safe to re-run.
+
+   ```powershell
+   Get-ChildItem database\migrations\*.sql | Sort-Object Name | ForEach-Object {
+       sqlcmd -S <server> -U <user> -C -d CuratedArtworkMarketplace -b -i $_.FullName
+   }
+   ```
+
+3. Run `.\scripts\dev.ps1 Verify`. A missing migration shows up here, or at startup, as a schema validation error
+   (`ddl-auto=validate`) naming the missing table or column.
+
+The test database `CuratedArtworkMarketplace_Test` is a copy of this one, made by
+[database/test/reset_test_database.sql](database/test/reset_test_database.sql); apply new migrations to both.
+
 Customer authentication requires `JWT_SECRET` before running the application;
 see [F01 setup and API contract](docs/customer-authentication.md).
 
