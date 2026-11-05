@@ -8,12 +8,15 @@ import com.exe101.commission.model.CommissionRequest;
 import com.exe101.commission.model.QuoteTerms;
 import com.exe101.commission.service.CommissionQuoteService;
 import com.exe101.commission.service.CommissionService;
+import com.exe101.common.error.AppErrorMessage;
+import com.exe101.common.error.AppException;
 import com.exe101.customer.model.CustomerRegistration;
 import com.exe101.customer.service.CustomerService;
 import com.exe101.entity.ArtistProfile;
 import com.exe101.entity.StaffAccount;
 import com.exe101.ledger.service.LedgerService;
 import com.exe101.payment.config.VnpayProperties;
+import com.exe101.payment.model.AttemptStatus;
 import com.exe101.payment.model.EventOutcome;
 import com.exe101.payment.model.NotificationResult;
 import com.exe101.payment.model.VnpayReply;
@@ -267,6 +270,34 @@ class QuotePaymentPersistenceTest {
             status.setRollbackOnly();
         });
         assertThat(count("SELECT COUNT(*) FROM dbo.Payment WHERE QuoteId = ?", accepted.quoteId())).isZero();
+    }
+
+    @Test
+    void quote_attempt_lookup_customer_only_ok() {
+        // given
+        // The first installment is paid; the commissioned Artist is a participant but not the buyer.
+        var accepted = acceptedQuote();
+        var ref = attemptRef(paymentService.startQuote(accepted.customerId(), accepted.commissionId(),
+            accepted.quoteId(), "203.0.113.7").getAttemptId());
+        paymentService.handleVnpayNotification(success(ref, firstTimes100));
+        var artistUserId = artistRepository.findById(accepted.artistId()).orElseThrow().getUserId();
+
+        // when
+        var lookup = paymentService.findAttempt(accepted.customerId(), ref);
+
+        // then
+        assertAll(
+            () -> assertThat(lookup.getAttemptRef()).isEqualTo(ref),
+            () -> assertThat(lookup.getStatus()).isEqualTo(AttemptStatus.SUCCEEDED),
+            () -> assertThat(lookup.getOrderId()).isNull(),
+            () -> assertThat(lookup.getCommissionId()).isEqualTo(accepted.commissionId()),
+            () -> assertThat(lookup.getQuoteId()).isEqualTo(accepted.quoteId()),
+            () -> assertThat(lookup.getInstallment()).isEqualTo(1)
+        );
+        assertThatThrownBy(() -> paymentService.findAttempt(artistUserId, ref))
+            .isInstanceOf(AppException.class)
+            .extracting("error")
+            .isEqualTo(AppErrorMessage.PAYMENT_ATTEMPT_NOT_FOUND);
     }
 
     private Accepted acceptedQuote() {
