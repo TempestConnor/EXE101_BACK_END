@@ -241,6 +241,6 @@ class CustomerControllerTest {
     }
 
     private Customer customer() {
-        return new Customer(42L, "buyer@example.com", "Buyer", OffsetDateTime.parse("2026-09-27T00:00:00Z"));
+        return new Customer(42L, "buyer@example.com", "Buyer", "ACTIVE", OffsetDateTime.parse("2026-09-27T00:00:00Z"));
     }
 }

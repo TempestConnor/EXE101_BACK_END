@@ -12,4 +12,6 @@ public interface CustomerService {
     Customer requireActive(Long userId);
 
     Customer getActive(Long userId);
+
+    Customer findByEmail(String email);
 }

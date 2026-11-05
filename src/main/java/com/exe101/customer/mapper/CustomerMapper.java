@@ -1,5 +1,6 @@
 package com.exe101.customer.mapper;
 
+import com.exe101.customer.dto.AdminCustomerDTO;
 import com.exe101.customer.dto.CustomerDTO;
 import com.exe101.customer.dto.CustomerTokenDTO;
 import com.exe101.customer.dto.LoginCustomerDTO;
@@ -24,6 +25,8 @@ public interface CustomerMapper {
     CustomerLogin toModel(LoginCustomerDTO dto);
 
     CustomerDTO toDto(Customer customer);
+
+    AdminCustomerDTO toAdminDto(Customer customer);
 
     CustomerTokenDTO toDto(CustomerToken token);
 }

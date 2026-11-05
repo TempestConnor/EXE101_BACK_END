@@ -16,5 +16,7 @@ public class Customer {
     private Long userId;
     private String email;
     private String displayName;
+    // Account status (ACTIVE, BLOCKED, ...); shown to the Admin, not in the Customer's own profile.
+    private String status;
     private OffsetDateTime createdAt;
 }

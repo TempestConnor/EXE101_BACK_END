@@ -97,6 +97,7 @@ public class SecurityConfiguration {
                 .requestMatchers("/commissions", "/commissions/**").hasRole("CUSTOMER")
                 .requestMatchers(HttpMethod.POST, "/admin/artists/*/deactivation", "/admin/artists/*/reinstatement")
                     .hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/admin/artists", "/admin/customers").hasRole("ADMIN")
                 .requestMatchers("/admin/commission-disputes", "/admin/commission-disputes/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/admin/commissions/*/quotes/*/terms").hasRole("ADMIN")
                 .requestMatchers("/addresses", "/addresses/*").hasRole("CUSTOMER")

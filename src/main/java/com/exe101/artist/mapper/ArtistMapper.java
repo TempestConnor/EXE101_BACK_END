@@ -37,6 +37,8 @@ public interface ArtistMapper {
 
     ArtistDTO toDto(Artist artist);
 
+    List<ArtistDTO> toDto(List<Artist> artists);
+
     PublicArtistDTO toPublicDto(Artist artist);
 
     ArtistDeactivationDTO toDto(ArtistDeactivation deactivation);

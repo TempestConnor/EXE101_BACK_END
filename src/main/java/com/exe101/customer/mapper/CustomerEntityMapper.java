@@ -18,6 +18,7 @@ public interface CustomerEntityMapper {
     @Mapping(source = "userId", target = "withUserId")
     @Mapping(source = "email", target = "withEmail")
     @Mapping(source = "displayName", target = "withDisplayName")
+    @Mapping(source = "status", target = "withStatus")
     @Mapping(source = "createdAt", target = "withCreatedAt")
     Customer toModel(MarketplaceUser entity);
 }

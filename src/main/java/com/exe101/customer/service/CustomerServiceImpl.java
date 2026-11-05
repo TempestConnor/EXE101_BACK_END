@@ -93,6 +93,17 @@ public class CustomerServiceImpl implements CustomerService {
         return mapper.toModel(entity);
     }
 
+    // For the Admin: one account by its exact email, normalized as at registration and login; whatever its status,
+    // so a blocked account is found too. No partial match, so accounts cannot be browsed.
+    @Override
+    @Transactional(readOnly = true)
+    public Customer findByEmail(String email) {
+        MarketplaceUser entity = repository.findByNormalizedEmail(normalizeEmail(email))
+            .orElseThrow(() -> new AppException(AppErrorMessage.USER_NOT_FOUND));
+
+        return mapper.toModel(entity);
+    }
+
     private void requireActiveAccount(MarketplaceUser entity) {
         if (!isActive(entity)) {
             throw new AppException(AppErrorMessage.INVALID_CREDENTIALS);

@@ -1,6 +1,7 @@
 package com.exe101.artist.controller;
 
 import com.exe101.artist.mapper.ArtistMapperImpl;
+import com.exe101.artist.model.Artist;
 import com.exe101.artist.model.ArtistDeactivation;
 import com.exe101.artist.service.ArtistService;
 import com.exe101.common.error.GlobalExceptionHandler;
@@ -18,6 +19,7 @@ import com.exe101.staff.security.StaffTokenIssuer;
 import com.exe101.staff.service.StaffService;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -28,6 +30,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -142,6 +145,41 @@ class ArtistAdminControllerTest {
                 .contentType(MediaType.APPLICATION_JSON).content("{}"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
+        verifyNoInteractions(artists);
+    }
+
+    @Test
+    void list_artists_ok() throws Exception {
+        // given
+        var token = adminToken();
+        when(artists.listAll()).thenReturn(List.of(
+            Artist.builder().withArtistId(9L).withUserId(42L).withDisplayName("Painter").withStatus("ACTIVE")
+                .withCreatedAt(startedAt).build(),
+            Artist.builder().withArtistId(10L).withUserId(43L).withDisplayName("Sculptor").withStatus("SUSPENDED")
+                .withCreatedAt(startedAt).build()));
+
+        // when / then
+        mvc.perform(get("/admin/artists").header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(2))
+            .andExpect(jsonPath("$[0].artistId").value(9))
+            .andExpect(jsonPath("$[0].userId").value(42))
+            .andExpect(jsonPath("$[0].status").value("ACTIVE"))
+            .andExpect(jsonPath("$[1].artistId").value(10))
+            .andExpect(jsonPath("$[1].displayName").value("Sculptor"))
+            .andExpect(jsonPath("$[1].status").value("SUSPENDED"));
+    }
+
+    @Test
+    void list_artists_customer_token_ko() throws Exception {
+        // given
+        when(customers.requireActive(42L)).thenReturn(Customer.builder().withUserId(42L).build());
+        var token = customerIssuer.issue(42L).getAccessToken();
+
+        // when / then
+        mvc.perform(get("/admin/artists").header("Authorization", "Bearer " + token))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.errorCode").value("ACCESS_DENIED"));
         verifyNoInteractions(artists);
     }
 

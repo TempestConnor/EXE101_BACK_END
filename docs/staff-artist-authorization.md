@@ -34,6 +34,14 @@ Decisions confirmed on 31 October 2026:
 | `POST /artists` | Admin bearer token; `userId`, `displayName`, optional `reason` (≤ 2000) | 201 with `artistId`, `userId`, `displayName`, `status`, `acceptingCommissions`, `createdAt` |
 | `GET /artists/me` | Customer bearer token | 200 with the caller's own Artist Profile (`artistId`, `userId`, `displayName`, `status`, `acceptingCommissions`, `startingPrice`, `createdAt`), deactivated (`SUSPENDED`) or not; `403 ARTIST_PROFILE_REQUIRED` when the Customer has none |
 
+| `GET /admin/customers?email=` | Admin bearer token | 200 with `userId`, `email`, `displayName`, `status`, `createdAt` of the one account with that exact email (normalized as at login), whatever its status; `404 USER_NOT_FOUND` otherwise |
+| `GET /admin/artists` | Admin bearer token | 200 with every Artist Profile, deactivated ones included, in the `GET /artists/me` shape, oldest first |
+
+The two Admin lookups (added 5 November 2026, from the frontend integration report) let the Admin find the `userId`
+to grant and the `artistId` to deactivate or reinstate without asking the user for it. The email lookup matches one
+exact address and cannot list or search accounts. Lookups change nothing, so they write no audit record, and the
+searched email is not logged.
+
 `GET /artists/me` (added 5 November 2026, from the frontend integration report) lets the storefront tell whether the
 signed-in Customer is an Artist and find their own `artistId`, for example for the terms page before any Artwork
 exists.

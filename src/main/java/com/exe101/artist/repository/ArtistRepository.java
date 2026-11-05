@@ -11,6 +11,8 @@ import org.springframework.data.jpa.repository.Lock;
 public interface ArtistRepository extends JpaRepository<ArtistProfile, Long> {
     boolean existsByUserId(long userId);
 
+    List<ArtistProfile> findAllByOrderByArtistIdAsc();
+
     Optional<ArtistProfile> findByUserId(long userId);
 
     // UPDLOCK until commit, in ID order: status changes wait for the Order that checked them.

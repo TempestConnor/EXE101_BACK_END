@@ -103,6 +103,13 @@ public class ArtistServiceImpl implements ArtistService {
         return repository.findAllById(artistIds).stream().map(mapper::toModel).toList();
     }
 
+    // For the Admin: every Artist, deactivated ones included, oldest first.
+    @Override
+    @Transactional(readOnly = true)
+    public List<Artist> listAll() {
+        return repository.findAllByOrderByArtistIdAsc().stream().map(mapper::toModel).toList();
+    }
+
     @Override
     public Artist getByUserId(Long userId) {
         ArtistProfile entity = repository.findByUserId(userId)

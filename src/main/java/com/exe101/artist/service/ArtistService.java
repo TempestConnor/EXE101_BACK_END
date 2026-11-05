@@ -16,6 +16,8 @@ public interface ArtistService {
 
     List<Artist> listByIds(Collection<Long> artistIds);
 
+    List<Artist> listAll();
+
     Artist lockByUserId(Long userId);
 
     List<Artist> lockForPurchase(Collection<Long> artistIds);

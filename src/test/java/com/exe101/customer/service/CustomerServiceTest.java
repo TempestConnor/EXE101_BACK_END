@@ -182,6 +182,40 @@ class CustomerServiceTest {
         assertThatThrownBy(() -> service.requireActive(42L)).isInstanceOf(AppException.class);
     }
 
+    @Test
+    void find_by_email_normalized_ok() {
+        // given
+        // A blocked account is found too: the Admin needs to see its status.
+        var blocked = active();
+        blocked.setEmail("buyer@example.com");
+        blocked.setDisplayName("Buyer");
+        blocked.setStatus("BLOCKED");
+        when(repository.findByNormalizedEmail("buyer@example.com")).thenReturn(Optional.of(blocked));
+
+        // when
+        var result = service.findByEmail(" Buyer@Example.COM ");
+
+        // then
+        assertAll(
+            () -> assertThat(result.getUserId()).isEqualTo(42L),
+            () -> assertThat(result.getEmail()).isEqualTo("buyer@example.com"),
+            () -> assertThat(result.getDisplayName()).isEqualTo("Buyer"),
+            () -> assertThat(result.getStatus()).isEqualTo("BLOCKED")
+        );
+    }
+
+    @Test
+    void find_by_email_unknown_ko() {
+        // given
+        when(repository.findByNormalizedEmail("nobody@example.com")).thenReturn(Optional.empty());
+
+        // when / then
+        assertThatThrownBy(() -> service.findByEmail("nobody@example.com"))
+            .isInstanceOf(AppException.class)
+            .extracting("error")
+            .isEqualTo(AppErrorMessage.USER_NOT_FOUND);
+    }
+
     private CustomerRegistration registration() {
         return new CustomerRegistration("Buyer@Example.COM", "long-password", " Buyer ");
     }
